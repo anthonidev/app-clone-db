@@ -1,124 +1,152 @@
-import { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Loader2, CheckCircle, XCircle } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { createProfile, updateProfile, testConnection } from '@/hooks/use-tauri'
-import { parseConnectionUrl } from '@/lib/utils'
-import { invoke } from '@tauri-apps/api/core'
-import type { ConnectionProfile, DatabaseInfo } from '@/types'
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  createProfile,
+  updateProfile,
+  testConnection,
+} from "@/hooks/use-tauri";
+import { parseConnectionUrl } from "@/lib/utils";
+import { invoke } from "@tauri-apps/api/core";
+import type { ConnectionProfile, DatabaseInfo } from "@/types";
 
 export function ConnectionForm() {
-  const navigate = useNavigate()
-  const { id } = useParams()
-  const isEditing = Boolean(id)
+  const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditing = Boolean(id);
 
-  const [inputMode, setInputMode] = useState<'url' | 'manual'>('manual')
-  const [connectionUrl, setConnectionUrl] = useState('')
+  const [inputMode, setInputMode] = useState<"url" | "manual">("manual");
+  const [connectionUrl, setConnectionUrl] = useState("");
 
-  const [name, setName] = useState('')
-  const [host, setHost] = useState('localhost')
-  const [port, setPort] = useState(5432)
-  const [database, setDatabase] = useState('')
-  const [user, setUser] = useState('postgres')
-  const [password, setPassword] = useState('')
-  const [ssl, setSsl] = useState(false)
+  const [name, setName] = useState("");
+  const [host, setHost] = useState("localhost");
+  const [port, setPort] = useState(5432);
+  const [database, setDatabase] = useState("");
+  const [user, setUser] = useState("postgres");
+  const [password, setPassword] = useState("");
+  const [ssl, setSsl] = useState(false);
 
-  const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState<DatabaseInfo | null>(null)
-  const [testError, setTestError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [loading, setLoading] = useState(isEditing)
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<DatabaseInfo | null>(null);
+  const [testError, setTestError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(isEditing);
 
   useEffect(() => {
     if (id) {
-      invoke<ConnectionProfile | null>('get_profile', { id }).then((profile) => {
-        if (profile) {
-          setName(profile.name)
-          setHost(profile.host)
-          setPort(profile.port)
-          setDatabase(profile.database)
-          setUser(profile.user)
-          setPassword(profile.password)
-          setSsl(profile.ssl)
+      invoke<ConnectionProfile | null>("get_profile", { id }).then(
+        (profile) => {
+          if (profile) {
+            setName(profile.name);
+            setHost(profile.host);
+            setPort(profile.port);
+            setDatabase(profile.database);
+            setUser(profile.user);
+            setPassword(profile.password);
+            setSsl(profile.ssl);
+          }
+          setLoading(false);
         }
-        setLoading(false)
-      })
+      );
     }
-  }, [id])
+  }, [id]);
 
   const handleUrlChange = (url: string) => {
-    setConnectionUrl(url)
-    const parsed = parseConnectionUrl(url)
+    setConnectionUrl(url);
+    const parsed = parseConnectionUrl(url);
     if (parsed) {
-      setHost(parsed.host)
-      setPort(parsed.port)
-      setDatabase(parsed.database)
-      setUser(parsed.user)
-      setPassword(parsed.password)
-      setSsl(parsed.ssl)
+      setHost(parsed.host);
+      setPort(parsed.port);
+      setDatabase(parsed.database);
+      setUser(parsed.user);
+      setPassword(parsed.password);
+      setSsl(parsed.ssl);
     }
-  }
+  };
 
   const handleTest = async () => {
-    setTesting(true)
-    setTestResult(null)
-    setTestError(null)
+    setTesting(true);
+    setTestResult(null);
+    setTestError(null);
 
     try {
-      const result = await testConnection(host, port, database, user, password, ssl)
-      setTestResult(result)
+      const result = await testConnection(
+        host,
+        port,
+        database,
+        user,
+        password,
+        ssl
+      );
+      setTestResult(result);
     } catch (error) {
-      setTestError(error as string)
+      setTestError(error as string);
     } finally {
-      setTesting(false)
+      setTesting(false);
     }
-  }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
+    e.preventDefault();
+    setSaving(true);
 
     try {
       if (isEditing && id) {
-        await updateProfile(id, name, host, port, database, user, password, ssl)
+        await updateProfile(
+          id,
+          name,
+          host,
+          port,
+          database,
+          user,
+          password,
+          ssl
+        );
       } else {
-        await createProfile(name, host, port, database, user, password, ssl)
+        await createProfile(name, host, port, database, user, password, ssl);
       }
-      navigate('/')
+      navigate("/");
     } catch (error) {
-      console.error('Failed to save profile:', error)
+      console.error("Failed to save profile:", error);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
-    )
+    );
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
+        <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
           <h1 className="text-2xl font-bold">
-            {isEditing ? 'Edit Connection' : 'New Connection'}
+            {isEditing ? "Edit Connection" : "New Connection"}
           </h1>
           <p className="text-muted-foreground">
             {isEditing
-              ? 'Update your database connection settings'
-              : 'Create a new database connection profile'}
+              ? "Update your database connection settings"
+              : "Create a new database connection profile"}
           </p>
         </div>
       </div>
@@ -143,7 +171,10 @@ export function ConnectionForm() {
               />
             </div>
 
-            <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as 'url' | 'manual')}>
+            <Tabs
+              value={inputMode}
+              onValueChange={(v) => setInputMode(v as "url" | "manual")}
+            >
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="manual">Manual</TabsTrigger>
                 <TabsTrigger value="url">Connection URL</TabsTrigger>
@@ -183,7 +214,9 @@ export function ConnectionForm() {
                       type="number"
                       placeholder="5432"
                       value={port}
-                      onChange={(e) => setPort(parseInt(e.target.value) || 5432)}
+                      onChange={(e) =>
+                        setPort(parseInt(e.target.value) || 5432)
+                      }
                       required
                     />
                   </div>
@@ -230,11 +263,7 @@ export function ConnectionForm() {
                       Enable SSL/TLS encryption
                     </p>
                   </div>
-                  <Switch
-                    id="ssl"
-                    checked={ssl}
-                    onCheckedChange={setSsl}
-                  />
+                  <Switch id="ssl" checked={ssl} onCheckedChange={setSsl} />
                 </div>
               </TabsContent>
             </Tabs>
@@ -243,9 +272,12 @@ export function ConnectionForm() {
               <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg flex items-start gap-3">
                 <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
                 <div>
-                  <p className="font-medium text-green-600">Connection successful!</p>
+                  <p className="font-medium text-green-600">
+                    Connection successful!
+                  </p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Found {testResult.tables.length} tables. PostgreSQL {testResult.version.split(' ')[1]}
+                    Found {testResult.tables.length} tables. PostgreSQL{" "}
+                    {testResult.version.split(" ")[1]}
                   </p>
                 </div>
               </div>
@@ -256,7 +288,9 @@ export function ConnectionForm() {
                 <XCircle className="h-5 w-5 text-red-600 mt-0.5" />
                 <div>
                   <p className="font-medium text-red-600">Connection failed</p>
-                  <p className="text-sm text-muted-foreground mt-1">{testError}</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {testError}
+                  </p>
                 </div>
               </div>
             )}
@@ -271,14 +305,17 @@ export function ConnectionForm() {
                 {testing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Test Connection
               </Button>
-              <Button type="submit" disabled={saving || !name || !host || !database || !user}>
+              <Button
+                type="submit"
+                disabled={saving || !name || !host || !database || !user}
+              >
                 {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {isEditing ? 'Update' : 'Save'} Connection
+                {isEditing ? "Update" : "Save"} Connection
               </Button>
             </div>
           </CardContent>
         </Card>
       </form>
     </div>
-  )
+  );
 }

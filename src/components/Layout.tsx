@@ -1,6 +1,6 @@
 import { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Database, History, Plus, Home } from 'lucide-react'
+import { Database, History, Plus, Home, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface LayoutProps {
@@ -11,6 +11,7 @@ const navItems = [
   { href: '/', icon: Home, label: 'Home' },
   { href: '/clone', icon: Database, label: 'Clone' },
   { href: '/history', icon: History, label: 'History' },
+  { href: '/settings', icon: Settings, label: 'Settings' },
 ]
 
 export function Layout({ children }: LayoutProps) {
@@ -19,7 +20,7 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
-      <aside className="w-64 border-r bg-card">
+      <aside className="w-64 border-r bg-card flex flex-col">
         <div className="p-6">
           <h1 className="text-xl font-bold flex items-center gap-2">
             <Database className="h-6 w-6 text-primary" />
@@ -30,7 +31,7 @@ export function Layout({ children }: LayoutProps) {
           </p>
         </div>
 
-        <nav className="px-4 space-y-1">
+        <nav className="px-4 space-y-1 flex-1">
           {navItems.map((item) => {
             const isActive = location.pathname === item.href
             return (
@@ -51,7 +52,7 @@ export function Layout({ children }: LayoutProps) {
           })}
         </nav>
 
-        <div className="px-4 mt-6">
+        <div className="px-4 pb-6">
           <Link
             to="/connection/new"
             className="flex items-center justify-center gap-2 w-full px-3 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"

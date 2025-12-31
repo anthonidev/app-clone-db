@@ -5,6 +5,7 @@ import { Home } from '@/pages/Home'
 import { ConnectionForm } from '@/pages/ConnectionForm'
 import { Clone } from '@/pages/Clone'
 import { History } from '@/pages/History'
+import { Settings } from '@/pages/Settings'
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           <Route path="/connection/:id/edit" element={<ConnectionForm />} />
           <Route path="/clone" element={<Clone />} />
           <Route path="/history" element={<History />} />
+          <Route path="/settings" element={<Settings />} />
         </Routes>
       </Layout>
       <Toaster />
