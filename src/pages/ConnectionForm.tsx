@@ -23,6 +23,7 @@ import { parseConnectionUrl } from "@/lib/utils";
 import { invoke } from "@tauri-apps/api/core";
 import { TagSelect } from "@/components/TagSelect";
 import { TagModal } from "@/components/TagModal";
+import { EditTagModal } from "@/components/EditTagModal";
 import type { ConnectionProfile, DatabaseInfo, Tag } from "@/types";
 
 export function ConnectionForm() {
@@ -49,6 +50,8 @@ export function ConnectionForm() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEditing);
   const [tagModalOpen, setTagModalOpen] = useState(false);
+  const [editTagModalOpen, setEditTagModalOpen] = useState(false);
+  const [tagToEdit, setTagToEdit] = useState<Tag | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -73,6 +76,22 @@ export function ConnectionForm() {
   const handleTagCreated = (tag: Tag) => {
     refetchTags();
     setTagId(tag.id); // Auto-select the newly created tag
+  };
+
+  const handleEditTag = (tag: Tag) => {
+    setTagToEdit(tag);
+    setEditTagModalOpen(true);
+  };
+
+  const handleTagUpdated = () => {
+    refetchTags();
+  };
+
+  const handleTagDeleted = (deletedTagId: string) => {
+    refetchTags();
+    if (tagId === deletedTagId) {
+      setTagId(null);
+    }
   };
 
   const handleUrlChange = (url: string) => {
@@ -192,6 +211,7 @@ export function ConnectionForm() {
                 value={tagId}
                 onChange={setTagId}
                 onCreateNew={() => setTagModalOpen(true)}
+                onEdit={handleEditTag}
               />
               <p className="text-xs text-muted-foreground">
                 Organize your connections with tags for easy filtering
@@ -348,6 +368,14 @@ export function ConnectionForm() {
         open={tagModalOpen}
         onOpenChange={setTagModalOpen}
         onTagCreated={handleTagCreated}
+      />
+
+      <EditTagModal
+        open={editTagModalOpen}
+        onOpenChange={setEditTagModalOpen}
+        tag={tagToEdit}
+        onTagUpdated={handleTagUpdated}
+        onTagDeleted={handleTagDeleted}
       />
     </div>
   );

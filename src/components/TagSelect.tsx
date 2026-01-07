@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, ChevronsUpDown, Plus, X } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, X, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,12 +23,19 @@ interface TagSelectProps {
   value: string | null;
   onChange: (tagId: string | null) => void;
   onCreateNew: () => void;
+  onEdit: (tag: Tag) => void;
 }
 
-export function TagSelect({ tags, value, onChange, onCreateNew }: TagSelectProps) {
+export function TagSelect({ tags, value, onChange, onCreateNew, onEdit }: TagSelectProps) {
   const [open, setOpen] = useState(false);
 
   const selectedTag = tags.find((tag) => tag.id === value);
+
+  const handleEditClick = (e: React.MouseEvent, tag: Tag) => {
+    e.stopPropagation();
+    setOpen(false);
+    onEdit(tag);
+  };
 
   return (
     <div className="flex gap-2">
@@ -68,15 +75,22 @@ export function TagSelect({ tags, value, onChange, onCreateNew }: TagSelectProps
                       onChange(tag.id === value ? null : tag.id);
                       setOpen(false);
                     }}
+                    className="flex items-center"
                   >
                     <div
                       className="w-4 h-4 rounded-full border mr-2"
                       style={{ backgroundColor: tag.color }}
                     />
                     <span className="flex-1">{tag.name}</span>
+                    <button
+                      onClick={(e) => handleEditClick(e, tag)}
+                      className="p-1 hover:bg-muted rounded opacity-50 hover:opacity-100 transition-opacity"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
                     <Check
                       className={cn(
-                        "h-4 w-4",
+                        "h-4 w-4 ml-1",
                         value === tag.id ? "opacity-100" : "opacity-0"
                       )}
                     />

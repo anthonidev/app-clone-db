@@ -2,6 +2,22 @@
 
 Aplicación de escritorio para clonar bases de datos PostgreSQL.
 
+## Descargar
+
+Descarga el instalador desde [Releases](https://github.com/anthonidev/app-clone-db/releases/latest).
+
+| Sistema | Archivo |
+|---------|---------|
+| Windows | `DB Clone_x.x.x_x64-setup.exe` |
+| macOS Intel | `DB Clone_x.x.x_x64.dmg` |
+| macOS Apple Silicon | `DB Clone_x.x.x_aarch64.dmg` |
+
+### Windows - Advertencia de SmartScreen
+
+Al instalar, Windows puede mostrar "Windows protegió tu PC". Esto ocurre porque la app no está firmada con un certificado de pago.
+
+**Para instalar:** Haz clic en "Más información" → "Ejecutar de todas formas"
+
 ## Requisitos
 
 - [Bun](https://bun.sh/) >= 1.0
