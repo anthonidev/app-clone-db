@@ -1,8 +1,8 @@
 version: "3"
 
 vars:
-  # Package manager for the frontend. Override like: `task PM=pnpm dev:web`
-  PM: npm
+  # Package manager for the frontend
+  PM: bun
   TAURI_DIR: src-tauri
 
 tasks:
@@ -30,7 +30,7 @@ tasks:
   typecheck:
     desc: TypeScript typecheck only (no emit)
     cmds:
-      - npx tsc -p tsconfig.json --noEmit
+      - bunx tsc -p tsconfig.json --noEmit
 
   preview:
     desc: Preview Vite production build
