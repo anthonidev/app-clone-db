@@ -133,7 +133,7 @@
 
 /* Log viewer styles */
 .log-viewer {
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-family: "Consolas", "Monaco", "Courier New", monospace;
   font-size: 12px;
   line-height: 1.4;
 }

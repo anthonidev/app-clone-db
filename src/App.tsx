@@ -1,16 +1,16 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { Layout } from '@/components/Layout'
-import { Toaster } from '@/components/ui/toaster'
-import { Home } from '@/pages/Home'
-import { ConnectionForm } from '@/pages/ConnectionForm'
-import { Clone } from '@/pages/Clone'
-import { History } from '@/pages/History'
-import { Settings } from '@/pages/Settings'
-import { useColorTheme } from '@/hooks/use-color-theme'
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Layout } from "@/components/Layout";
+import { Toaster } from "@/components/ui/toaster";
+import { Home } from "@/pages/Home";
+import { ConnectionForm } from "@/pages/ConnectionForm";
+import { Clone } from "@/pages/Clone";
+import { History } from "@/pages/History";
+import { Settings } from "@/pages/Settings";
+import { useColorTheme } from "@/hooks/use-color-theme";
 
 function App() {
   // Initialize color theme on app load
-  useColorTheme()
+  useColorTheme();
 
   return (
     <BrowserRouter>
@@ -26,7 +26,7 @@ function App() {
       </Layout>
       <Toaster />
     </BrowserRouter>
-  )
+  );
 }
 
-export default App
+export default App;

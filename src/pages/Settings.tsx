@@ -1,30 +1,39 @@
-import { ArrowLeft, Monitor, Moon, Sun, Palette } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import { useTheme, Theme } from '@/hooks/use-theme'
-import { useColorTheme } from '@/hooks/use-color-theme'
-import { cn } from '@/lib/utils'
+import { ArrowLeft, Monitor, Moon, Sun, Palette } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { useTheme, Theme } from "@/hooks/use-theme";
+import { useColorTheme } from "@/hooks/use-color-theme";
+import { cn } from "@/lib/utils";
 
 const themes: { value: Theme; label: string; icon: typeof Sun }[] = [
-  { value: 'light', label: 'Light', icon: Sun },
-  { value: 'dark', label: 'Dark', icon: Moon },
-  { value: 'system', label: 'System', icon: Monitor },
-]
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+  { value: "system", label: "System", icon: Monitor },
+];
 
 export function Settings() {
-  const navigate = useNavigate()
-  const { theme, setTheme } = useTheme()
-  const { colorTheme, setColorTheme, colorThemes } = useColorTheme()
+  const navigate = useNavigate();
+  const { theme, setTheme } = useTheme();
+  const { colorTheme, setColorTheme, colorThemes } = useColorTheme();
 
   // Determinar si estamos en modo oscuro
-  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  const isDark =
+    theme === "dark" ||
+    (theme === "system" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
+        <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
@@ -55,20 +64,24 @@ export function Settings() {
                   key={value}
                   onClick={() => setTheme(value)}
                   className={cn(
-                    'flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all hover:bg-accent',
+                    "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all hover:bg-accent",
                     theme === value
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border'
+                      ? "border-primary bg-primary/5"
+                      : "border-border"
                   )}
                 >
-                  <Icon className={cn(
-                    'h-6 w-6',
-                    theme === value ? 'text-primary' : 'text-muted-foreground'
-                  )} />
-                  <span className={cn(
-                    'text-sm font-medium',
-                    theme === value ? 'text-primary' : 'text-muted-foreground'
-                  )}>
+                  <Icon
+                    className={cn(
+                      "h-6 w-6",
+                      theme === value ? "text-primary" : "text-muted-foreground"
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      "text-sm font-medium",
+                      theme === value ? "text-primary" : "text-muted-foreground"
+                    )}
+                  >
                     {label}
                   </span>
                 </button>
@@ -91,26 +104,30 @@ export function Settings() {
                   key={value}
                   onClick={() => setColorTheme(value)}
                   className={cn(
-                    'flex flex-col items-center gap-2 group transition-transform hover:scale-110',
-                    colorTheme === value && 'scale-110'
+                    "flex flex-col items-center gap-2 group transition-transform hover:scale-110",
+                    colorTheme === value && "scale-110"
                   )}
                   title={label}
                 >
                   <div
                     className={cn(
-                      'h-12 w-12 rounded-full transition-all border-4',
+                      "h-12 w-12 rounded-full transition-all border-4",
                       colorTheme === value
-                        ? 'border-foreground shadow-lg'
-                        : 'border-transparent hover:border-muted-foreground/30'
+                        ? "border-foreground shadow-lg"
+                        : "border-transparent hover:border-muted-foreground/30"
                     )}
                     style={{
                       backgroundColor: isDark ? darkColor : color,
                     }}
                   />
-                  <span className={cn(
-                    'text-xs font-medium transition-colors',
-                    colorTheme === value ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'
-                  )}>
+                  <span
+                    className={cn(
+                      "text-xs font-medium transition-colors",
+                      colorTheme === value
+                        ? "text-foreground"
+                        : "text-muted-foreground group-hover:text-foreground"
+                    )}
+                  >
                     {label}
                   </span>
                 </button>
@@ -120,5 +137,5 @@ export function Settings() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
