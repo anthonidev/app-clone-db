@@ -33,6 +33,15 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI4N0YyQkFGQTM5QjVFODYKUldTR1hwdWpyeXQvdUhuVitoN2ZBZnFmRy8xMURBTHVYMnd3SDVaN0lQZXRkWVR4cktta3NYN2kK",
+      "endpoints": [
+        "https://github.com/anthonidev/app-clone-db/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

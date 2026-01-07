@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { Toaster } from "@/components/ui/toaster";
+import { UpdateNotification } from "@/components/UpdateNotification";
 import { Home } from "@/pages/Home";
 import { ConnectionForm } from "@/pages/ConnectionForm";
 import { Clone } from "@/pages/Clone";
@@ -25,6 +26,7 @@ function App() {
         </Routes>
       </Layout>
       <Toaster />
+      <UpdateNotification />
     </BrowserRouter>
   );
 }

@@ -6,7 +6,8 @@
       "Bash(bunx tailwindcss init:*)",
       "Bash(bun run build)",
       "Bash(cargo check:*)",
-      "Bash(bunx shadcn@latest add popover:*)"
+      "Bash(bunx shadcn@latest add popover:*)",
+      "Bash(cargo add:*)"
     ]
   }
 }
