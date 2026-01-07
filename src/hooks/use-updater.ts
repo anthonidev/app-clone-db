@@ -9,6 +9,8 @@ interface UpdateState {
   progress: number;
   version: string | null;
   error: string | null;
+  downloadedBytes: number;
+  totalBytes: number;
 }
 
 export function useUpdater() {
@@ -19,6 +21,8 @@ export function useUpdater() {
     progress: 0,
     version: null,
     error: null,
+    downloadedBytes: 0,
+    totalBytes: 0,
   });
   const [update, setUpdate] = useState<Update | null>(null);
 
@@ -50,18 +54,30 @@ export function useUpdater() {
   const downloadAndInstall = useCallback(async () => {
     if (!update) return;
 
-    setState((s) => ({ ...s, downloading: true, progress: 0 }));
+    let downloaded = 0;
+
+    setState((s) => ({ ...s, downloading: true, progress: 0, downloadedBytes: 0, totalBytes: 0 }));
 
     try {
       await update.downloadAndInstall((event) => {
-        if (event.event === "Progress") {
-          const { contentLength, chunkLength } = event.data as {
-            contentLength: number;
-            chunkLength: number;
-          };
+        if (event.event === "Started") {
+          const contentLength = (event.data as { contentLength?: number }).contentLength ?? 0;
           setState((s) => ({
             ...s,
-            progress: Math.round((chunkLength / contentLength) * 100),
+            totalBytes: contentLength,
+          }));
+        } else if (event.event === "Progress") {
+          const chunkLength = (event.data as { chunkLength: number }).chunkLength;
+          downloaded += chunkLength;
+          setState((s) => ({
+            ...s,
+            downloadedBytes: downloaded,
+            progress: s.totalBytes > 0 ? Math.round((downloaded / s.totalBytes) * 100) : 0,
+          }));
+        } else if (event.event === "Finished") {
+          setState((s) => ({
+            ...s,
+            progress: 100,
           }));
         }
       });
@@ -72,7 +88,7 @@ export function useUpdater() {
       setState((s) => ({
         ...s,
         downloading: false,
-        error: error as string,
+        error: String(error),
       }));
     }
   }, [update]);

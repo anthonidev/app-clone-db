@@ -9,7 +9,8 @@
       "Bash(bunx shadcn@latest add popover:*)",
       "Bash(cargo add:*)",
       "WebFetch(domain:v2.tauri.app)",
-      "Bash(bun run build:*)"
+      "Bash(bun run build:*)",
+      "WebFetch(domain:release-assets.githubusercontent.com)"
     ]
   }
 }
