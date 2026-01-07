@@ -2,19 +2,16 @@ import { Link } from 'react-router-dom'
 import { Plus, Database, AlertCircle, Loader2, Tag as TagIcon, X, Filter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ConnectionCard } from '@/components/ConnectionCard'
-import { useProfiles, useTags, checkPgTools } from '@/hooks/use-tauri'
-import { useEffect, useState, useMemo } from 'react'
+import { useProfiles, useTags } from '@/hooks/use-tauri'
+import { usePgTools } from '@/context/PgToolsContext'
+import { useState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 
 export function Home() {
   const { profiles, loading, error, refetch } = useProfiles()
   const { tags } = useTags()
-  const [pgToolsAvailable, setPgToolsAvailable] = useState<boolean | null>(null)
+  const { available: pgToolsAvailable } = usePgTools()
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null)
-
-  useEffect(() => {
-    checkPgTools().then(setPgToolsAvailable).catch(() => setPgToolsAvailable(false))
-  }, [])
 
   const filteredProfiles = useMemo(() => {
     if (!selectedTagId) return profiles

@@ -15,25 +15,33 @@ export function useProfiles() {
   const [profiles, setProfiles] = useState<ConnectionProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [initialized, setInitialized] = useState(false)
 
-  const fetchProfiles = useCallback(async () => {
+  const fetchProfiles = useCallback(async (isInitial = false) => {
     try {
-      setLoading(true)
+      if (isInitial) setLoading(true)
       const result = await invoke<ConnectionProfile[]>('get_profiles')
       setProfiles(result)
       setError(null)
     } catch (e) {
       setError(e as string)
     } finally {
-      setLoading(false)
+      if (isInitial) {
+        setLoading(false)
+        setInitialized(true)
+      }
     }
   }, [])
 
   useEffect(() => {
-    fetchProfiles()
-  }, [fetchProfiles])
+    if (!initialized) {
+      fetchProfiles(true)
+    }
+  }, [fetchProfiles, initialized])
 
-  return { profiles, loading, error, refetch: fetchProfiles }
+  const refetch = useCallback(() => fetchProfiles(false), [fetchProfiles])
+
+  return { profiles, loading, error, refetch }
 }
 
 export async function createProfile(
@@ -157,25 +165,33 @@ export function useHistory() {
   const [history, setHistory] = useState<CloneHistoryEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [initialized, setInitialized] = useState(false)
 
-  const fetchHistory = useCallback(async () => {
+  const fetchHistory = useCallback(async (isInitial = false) => {
     try {
-      setLoading(true)
+      if (isInitial) setLoading(true)
       const result = await invoke<CloneHistoryEntry[]>('get_history')
       setHistory(result)
       setError(null)
     } catch (e) {
       setError(e as string)
     } finally {
-      setLoading(false)
+      if (isInitial) {
+        setLoading(false)
+        setInitialized(true)
+      }
     }
   }, [])
 
   useEffect(() => {
-    fetchHistory()
-  }, [fetchHistory])
+    if (!initialized) {
+      fetchHistory(true)
+    }
+  }, [fetchHistory, initialized])
 
-  return { history, loading, error, refetch: fetchHistory }
+  const refetch = useCallback(() => fetchHistory(false), [fetchHistory])
+
+  return { history, loading, error, refetch }
 }
 
 export async function getHistoryEntry(id: string): Promise<CloneHistoryEntry | null> {
@@ -191,25 +207,33 @@ export function useTags() {
   const [tags, setTags] = useState<Tag[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [initialized, setInitialized] = useState(false)
 
-  const fetchTags = useCallback(async () => {
+  const fetchTags = useCallback(async (isInitial = false) => {
     try {
-      setLoading(true)
+      if (isInitial) setLoading(true)
       const result = await invoke<Tag[]>('get_tags')
       setTags(result)
       setError(null)
     } catch (e) {
       setError(e as string)
     } finally {
-      setLoading(false)
+      if (isInitial) {
+        setLoading(false)
+        setInitialized(true)
+      }
     }
   }, [])
 
   useEffect(() => {
-    fetchTags()
-  }, [fetchTags])
+    if (!initialized) {
+      fetchTags(true)
+    }
+  }, [fetchTags, initialized])
 
-  return { tags, loading, error, refetch: fetchTags }
+  const refetch = useCallback(() => fetchTags(false), [fetchTags])
+
+  return { tags, loading, error, refetch }
 }
 
 export async function createTag(name: string, color: string): Promise<Tag> {

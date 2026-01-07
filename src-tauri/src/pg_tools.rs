@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
+
+use crate::command_helper::create_command;
 
 /// Encuentra todas las versiones de PostgreSQL instaladas en Windows
 /// Retorna las rutas ordenadas de mayor a menor versión
@@ -72,7 +73,7 @@ pub fn find_psql() -> Option<String> {
             if psql_path.exists() {
                 if let Some(path_str) = psql_path.to_str() {
                     // Verificar que funciona
-                    if Command::new(path_str).arg("--version").output().is_ok() {
+                    if create_command(path_str).arg("--version").output().is_ok() {
                         return Some(path_str.to_string());
                     }
                 }
@@ -89,7 +90,7 @@ pub fn find_psql() -> Option<String> {
 
         for path in unix_paths {
             if std::path::Path::new(path).exists() {
-                if Command::new(path).arg("--version").output().is_ok() {
+                if create_command(path).arg("--version").output().is_ok() {
                     return Some(path.to_string());
                 }
             }
@@ -114,7 +115,7 @@ pub fn find_pg_dump() -> Option<String> {
             if pg_dump_path.exists() {
                 if let Some(path_str) = pg_dump_path.to_str() {
                     // Verificar que funciona
-                    if Command::new(path_str).arg("--version").output().is_ok() {
+                    if create_command(path_str).arg("--version").output().is_ok() {
                         return Some(path_str.to_string());
                     }
                 }
@@ -131,7 +132,7 @@ pub fn find_pg_dump() -> Option<String> {
 
         for path in unix_paths {
             if std::path::Path::new(path).exists() {
-                if Command::new(path).arg("--version").output().is_ok() {
+                if create_command(path).arg("--version").output().is_ok() {
                     return Some(path.to_string());
                 }
             }
@@ -144,9 +145,9 @@ pub fn find_pg_dump() -> Option<String> {
 /// Intenta encontrar un ejecutable en el PATH del sistema
 fn find_in_path(executable: &str) -> Option<String> {
     let output = if cfg!(windows) {
-        Command::new("where").arg(executable).output()
+        create_command("where").arg(executable).output()
     } else {
-        Command::new("which").arg(executable).output()
+        create_command("which").arg(executable).output()
     };
 
     if let Ok(output) = output {
@@ -160,11 +161,7 @@ fn find_in_path(executable: &str) -> Option<String> {
 
             if !path.is_empty() {
                 // Verificar que el ejecutable funciona
-                let check = if cfg!(windows) {
-                    Command::new(&path).arg("--version").output()
-                } else {
-                    Command::new(&path).arg("--version").output()
-                };
+                let check = create_command(&path).arg("--version").output();
 
                 if check.is_ok() {
                     return Some(path);
@@ -180,7 +177,7 @@ fn find_in_path(executable: &str) -> Option<String> {
 pub fn get_pg_client_version() -> Option<String> {
     let psql = find_psql()?;
 
-    let output = Command::new(&psql).arg("--version").output().ok()?;
+    let output = create_command(&psql).arg("--version").output().ok()?;
 
     if output.status.success() {
         let version_str = String::from_utf8_lossy(&output.stdout);

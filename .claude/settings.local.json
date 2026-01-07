@@ -8,7 +8,8 @@
       "Bash(cargo check:*)",
       "Bash(bunx shadcn@latest add popover:*)",
       "Bash(cargo add:*)",
-      "WebFetch(domain:v2.tauri.app)"
+      "WebFetch(domain:v2.tauri.app)",
+      "Bash(bun run build:*)"
     ]
   }
 }

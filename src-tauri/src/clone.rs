@@ -1,8 +1,9 @@
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 
 use tauri::{AppHandle, Emitter};
 
+use crate::command_helper::create_command;
 use crate::connection::get_profile_by_id;
 use crate::pg_tools::{find_pg_dump, find_psql};
 use crate::storage::{load_app_data, save_app_data};
@@ -121,7 +122,7 @@ async fn execute_clone(
             destination.host, destination.port, destination.database, destination.user
         );
 
-        let backup_output = Command::new(pg_dump)
+        let backup_output = create_command(pg_dump)
             .env("PGPASSWORD", &destination.password)
             .env("PGSSLMODE", if destination.ssl { "require" } else { "prefer" })
             .args(["-d", &conn_str, "-f", backup_path.to_str().unwrap()])
@@ -157,7 +158,7 @@ async fn execute_clone(
             END $$;
         "#;
 
-        let clean_output = Command::new(psql)
+        let clean_output = create_command(psql)
             .env("PGPASSWORD", &destination.password)
             .env("PGSSLMODE", if destination.ssl { "require" } else { "prefer" })
             .args(["-d", &conn_str, "-c", drop_query])
@@ -212,7 +213,7 @@ async fn execute_clone(
 
     add_log(&format!("[INFO] Running pg_dump with args: {:?}", dump_args));
 
-    let dump_output = Command::new(pg_dump)
+    let dump_output = create_command(pg_dump)
         .env("PGPASSWORD", &source.password)
         .env("PGSSLMODE", if source.ssl { "require" } else { "prefer" })
         .args(&dump_args)
@@ -242,7 +243,7 @@ async fn execute_clone(
         destination.host, destination.port, destination.database, destination.user
     );
 
-    let restore_process = Command::new(psql)
+    let restore_process = create_command(psql)
         .env("PGPASSWORD", &destination.password)
         .env("PGSSLMODE", if destination.ssl { "require" } else { "prefer" })
         .args(["-d", &dest_conn_str, "-f", dump_path.to_str().unwrap()])
@@ -278,7 +279,7 @@ async fn execute_clone(
     // Quick verification - count tables
     let verify_query = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';";
 
-    let verify_output = Command::new(psql)
+    let verify_output = create_command(psql)
         .env("PGPASSWORD", &destination.password)
         .env("PGSSLMODE", if destination.ssl { "require" } else { "prefer" })
         .args(["-d", &dest_conn_str, "-t", "-c", verify_query])

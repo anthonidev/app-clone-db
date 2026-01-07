@@ -1,4 +1,5 @@
 mod clone;
+mod command_helper;
 mod connection;
 mod pg_tools;
 mod profiles;

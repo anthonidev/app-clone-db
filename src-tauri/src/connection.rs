@@ -1,6 +1,5 @@
-use std::process::Command;
-
-use crate::pg_tools::{find_psql, check_tools_available};
+use crate::command_helper::create_command;
+use crate::pg_tools::{check_tools_available, find_psql};
 use crate::storage::load_app_data;
 use crate::types::{ConnectionProfile, DatabaseInfo, TableInfo};
 
@@ -27,7 +26,7 @@ pub async fn test_connection(
     );
 
     // First, test basic connection and get version
-    let version_output = Command::new(&psql)
+    let version_output = create_command(&psql)
         .env("PGPASSWORD", &password)
         .env("PGSSLMODE", if ssl { "require" } else { "prefer" })
         .args(["-d", &conn_str, "-t", "-c", "SELECT version();"])
@@ -57,7 +56,7 @@ pub async fn test_connection(
         ORDER BY t.table_schema, t.table_name;
     "#;
 
-    let tables_output = Command::new(&psql)
+    let tables_output = create_command(&psql)
         .env("PGPASSWORD", &password)
         .env("PGSSLMODE", if ssl { "require" } else { "prefer" })
         .args(["-d", &conn_str, "-t", "-A", "-F", "|", "-c", tables_query])
@@ -80,7 +79,7 @@ pub async fn test_connection(
     }
 
     // Get total database size
-    let size_output = Command::new(&psql)
+    let size_output = create_command(&psql)
         .env("PGPASSWORD", &password)
         .env("PGSSLMODE", if ssl { "require" } else { "prefer" })
         .args([
