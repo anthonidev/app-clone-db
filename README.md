@@ -7,7 +7,7 @@ Aplicación de escritorio para clonar bases de datos PostgreSQL.
 - [Bun](https://bun.sh/) >= 1.0
 - [Rust](https://rustup.rs/) >= 1.70
 - [PostgreSQL](https://www.postgresql.org/download/) (cliente: `psql`, `pg_dump`)
-- [Task](https://taskfile.dev/) (opcional)
+<!-- - [Task](https://taskfile.dev/) (opcional) -->
 
 ## Instalación
 
