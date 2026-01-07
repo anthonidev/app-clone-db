@@ -6,8 +6,12 @@ import { ConnectionForm } from '@/pages/ConnectionForm'
 import { Clone } from '@/pages/Clone'
 import { History } from '@/pages/History'
 import { Settings } from '@/pages/Settings'
+import { useColorTheme } from '@/hooks/use-color-theme'
 
 function App() {
+  // Initialize color theme on app load
+  useColorTheme()
+
   return (
     <BrowserRouter>
       <Layout>

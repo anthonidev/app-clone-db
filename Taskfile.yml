@@ -1,0 +1,86 @@
+version: "3"
+
+vars:
+  # Package manager for the frontend. Override like: `task PM=pnpm dev:web`
+  PM: npm
+  TAURI_DIR: src-tauri
+
+tasks:
+  default:
+    desc: List available tasks
+    silent: true
+    cmds:
+      - task -l
+
+  install:
+    desc: Install frontend dependencies
+    cmds:
+      - "{{.PM}} install"
+
+  dev:web:
+    desc: Run Vite dev server (web)
+    cmds:
+      - "{{.PM}} run dev"
+
+  build:web:
+    desc: Typecheck + build web assets
+    cmds:
+      - "{{.PM}} run build"
+
+  typecheck:
+    desc: TypeScript typecheck only (no emit)
+    cmds:
+      - npx tsc -p tsconfig.json --noEmit
+
+  preview:
+    desc: Preview Vite production build
+    cmds:
+      - "{{.PM}} run preview"
+
+  tauri:dev:
+    desc: Run Tauri app in dev mode
+    cmds:
+      - "{{.PM}} run tauri dev"
+
+  tauri:build:
+    desc: Build Tauri app (release bundle)
+    cmds:
+      - "{{.PM}} run tauri build"
+
+  rust:check:
+    desc: Cargo check (src-tauri)
+    dir: "{{.TAURI_DIR}}"
+    cmds:
+      - cargo check
+
+  rust:test:
+    desc: Cargo test (src-tauri)
+    dir: "{{.TAURI_DIR}}"
+    cmds:
+      - cargo test
+
+  rust:fmt:
+    desc: Rustfmt (src-tauri)
+    dir: "{{.TAURI_DIR}}"
+    cmds:
+      - cargo fmt
+
+  rust:clippy:
+    desc: Clippy (src-tauri)
+    dir: "{{.TAURI_DIR}}"
+    cmds:
+      - cargo clippy -- -D warnings
+
+  clean:web:
+    desc: Remove web build output
+    cmds:
+      - cmd: powershell -NoProfile -Command "Remove-Item -Force -Recurse dist -ErrorAction SilentlyContinue"
+        platforms: [windows]
+      - cmd: rm -rf dist
+        platforms: [linux, darwin]
+
+  clean:tauri:
+    desc: Cargo clean (src-tauri)
+    dir: "{{.TAURI_DIR}}"
+    cmds:
+      - cargo clean
