@@ -47,9 +47,7 @@ function applyColorTheme(colorTheme: ColorTheme) {
     const root = document.documentElement
 
     // Remove all color theme classes
-    colorThemes.forEach(({ value }) => {
-        root.removeAttribute(`data-color-theme`)
-    })
+    root.removeAttribute(`data-color-theme`)
 
     // Apply the selected color theme
     if (colorTheme !== 'blue') {

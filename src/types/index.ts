@@ -1,3 +1,9 @@
+export interface Tag {
+  id: string
+  name: string
+  color: string // Formato hex: #RRGGBB
+}
+
 export interface ConnectionProfile {
   id: string
   name: string
@@ -7,6 +13,7 @@ export interface ConnectionProfile {
   user: string
   password: string
   ssl: boolean
+  tagId: string | null
   createdAt: string
   updatedAt: string
 }

@@ -17,15 +17,19 @@ import {
   createProfile,
   updateProfile,
   testConnection,
+  useTags,
 } from "@/hooks/use-tauri";
 import { parseConnectionUrl } from "@/lib/utils";
 import { invoke } from "@tauri-apps/api/core";
-import type { ConnectionProfile, DatabaseInfo } from "@/types";
+import { TagSelect } from "@/components/TagSelect";
+import { TagModal } from "@/components/TagModal";
+import type { ConnectionProfile, DatabaseInfo, Tag } from "@/types";
 
 export function ConnectionForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditing = Boolean(id);
+  const { tags, refetch: refetchTags } = useTags();
 
   const [inputMode, setInputMode] = useState<"url" | "manual">("manual");
   const [connectionUrl, setConnectionUrl] = useState("");
@@ -37,12 +41,14 @@ export function ConnectionForm() {
   const [user, setUser] = useState("postgres");
   const [password, setPassword] = useState("");
   const [ssl, setSsl] = useState(false);
+  const [tagId, setTagId] = useState<string | null>(null);
 
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<DatabaseInfo | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEditing);
+  const [tagModalOpen, setTagModalOpen] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -56,12 +62,18 @@ export function ConnectionForm() {
             setUser(profile.user);
             setPassword(profile.password);
             setSsl(profile.ssl);
+            setTagId(profile.tagId);
           }
           setLoading(false);
         }
       );
     }
   }, [id]);
+
+  const handleTagCreated = (tag: Tag) => {
+    refetchTags();
+    setTagId(tag.id); // Auto-select the newly created tag
+  };
 
   const handleUrlChange = (url: string) => {
     setConnectionUrl(url);
@@ -112,10 +124,11 @@ export function ConnectionForm() {
           database,
           user,
           password,
-          ssl
+          ssl,
+          tagId
         );
       } else {
-        await createProfile(name, host, port, database, user, password, ssl);
+        await createProfile(name, host, port, database, user, password, ssl, tagId);
       }
       navigate("/");
     } catch (error) {
@@ -169,6 +182,20 @@ export function ConnectionForm() {
                 onChange={(e) => setName(e.target.value)}
                 required
               />
+            </div>
+
+            {/* Tag Selector */}
+            <div className="space-y-2">
+              <Label>Tag (Optional)</Label>
+              <TagSelect
+                tags={tags}
+                value={tagId}
+                onChange={setTagId}
+                onCreateNew={() => setTagModalOpen(true)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Organize your connections with tags for easy filtering
+              </p>
             </div>
 
             <Tabs
@@ -316,6 +343,12 @@ export function ConnectionForm() {
           </CardContent>
         </Card>
       </form>
+
+      <TagModal
+        open={tagModalOpen}
+        onOpenChange={setTagModalOpen}
+        onTagCreated={handleTagCreated}
+      />
     </div>
   );
 }

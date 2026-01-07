@@ -1,7 +1,7 @@
 use chrono::Utc;
 
 use crate::storage::{load_app_data, save_app_data};
-use crate::types::ConnectionProfile;
+use crate::types::{ConnectionProfile, Tag};
 
 #[tauri::command]
 pub fn get_profiles() -> Result<Vec<ConnectionProfile>, String> {
@@ -24,10 +24,11 @@ pub fn create_profile(
     user: String,
     password: String,
     ssl: bool,
+    tag_id: Option<String>,
 ) -> Result<ConnectionProfile, String> {
     let mut data = load_app_data();
 
-    let profile = ConnectionProfile::new(name, host, port, database, user, password, ssl);
+    let profile = ConnectionProfile::new(name, host, port, database, user, password, ssl, tag_id);
 
     data.profiles.push(profile.clone());
     save_app_data(&data)?;
@@ -45,6 +46,7 @@ pub fn update_profile(
     user: String,
     password: String,
     ssl: bool,
+    tag_id: Option<String>,
 ) -> Result<ConnectionProfile, String> {
     let mut data = load_app_data();
 
@@ -61,6 +63,7 @@ pub fn update_profile(
     profile.user = user;
     profile.password = password;
     profile.ssl = ssl;
+    profile.tag_id = tag_id;
     profile.updated_at = Utc::now();
 
     let updated = profile.clone();
@@ -78,6 +81,76 @@ pub fn delete_profile(id: String) -> Result<(), String> {
 
     if data.profiles.len() == initial_len {
         return Err("Profile not found".to_string());
+    }
+
+    save_app_data(&data)?;
+    Ok(())
+}
+
+// Tag commands
+
+#[tauri::command]
+pub fn get_tags() -> Result<Vec<Tag>, String> {
+    let data = load_app_data();
+    Ok(data.tags)
+}
+
+#[tauri::command]
+pub fn create_tag(name: String, color: String) -> Result<Tag, String> {
+    let mut data = load_app_data();
+
+    // Validate color format
+    if !color.starts_with('#') || color.len() != 7 {
+        return Err("Color must be in hex format: #RRGGBB".to_string());
+    }
+
+    let tag = Tag::new(name, color);
+    data.tags.push(tag.clone());
+    save_app_data(&data)?;
+
+    Ok(tag)
+}
+
+#[tauri::command]
+pub fn update_tag(id: String, name: String, color: String) -> Result<Tag, String> {
+    let mut data = load_app_data();
+
+    // Validate color format
+    if !color.starts_with('#') || color.len() != 7 {
+        return Err("Color must be in hex format: #RRGGBB".to_string());
+    }
+
+    let tag = data
+        .tags
+        .iter_mut()
+        .find(|t| t.id == id)
+        .ok_or("Tag not found")?;
+
+    tag.name = name;
+    tag.color = color;
+
+    let updated = tag.clone();
+    save_app_data(&data)?;
+
+    Ok(updated)
+}
+
+#[tauri::command]
+pub fn delete_tag(id: String) -> Result<(), String> {
+    let mut data = load_app_data();
+
+    let initial_len = data.tags.len();
+    data.tags.retain(|t| t.id != id);
+
+    if data.tags.len() == initial_len {
+        return Err("Tag not found".to_string());
+    }
+
+    // Remove tag_id from profiles that reference this tag
+    for profile in data.profiles.iter_mut() {
+        if profile.tag_id.as_ref() == Some(&id) {
+            profile.tag_id = None;
+        }
     }
 
     save_app_data(&data)?;

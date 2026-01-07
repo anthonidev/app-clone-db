@@ -3,6 +3,23 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Tag {
+    pub id: String,
+    pub name: String,
+    pub color: String, // Formato hex: #RRGGBB
+}
+
+impl Tag {
+    pub fn new(name: String, color: String) -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            name,
+            color,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectionProfile {
     pub id: String,
     pub name: String,
@@ -12,6 +29,8 @@ pub struct ConnectionProfile {
     pub user: String,
     pub password: String,
     pub ssl: bool,
+    #[serde(rename = "tagId")]
+    pub tag_id: Option<String>,
     #[serde(rename = "createdAt")]
     pub created_at: DateTime<Utc>,
     #[serde(rename = "updatedAt")]
@@ -27,6 +46,7 @@ impl ConnectionProfile {
         user: String,
         password: String,
         ssl: bool,
+        tag_id: Option<String>,
     ) -> Self {
         let now = Utc::now();
         Self {
@@ -38,6 +58,7 @@ impl ConnectionProfile {
             user,
             password,
             ssl,
+            tag_id,
             created_at: now,
             updated_at: now,
         }
@@ -221,4 +242,6 @@ impl CloneHistoryEntry {
 pub struct AppData {
     pub profiles: Vec<ConnectionProfile>,
     pub history: Vec<CloneHistoryEntry>,
+    #[serde(default)]
+    pub tags: Vec<Tag>,
 }

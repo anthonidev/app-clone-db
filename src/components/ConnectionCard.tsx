@@ -13,15 +13,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { testConnectionById, deleteProfile } from '@/hooks/use-tauri'
-import type { ConnectionProfile, DatabaseInfo } from '@/types'
+import type { ConnectionProfile, DatabaseInfo, Tag } from '@/types'
 import { formatBytes } from '@/lib/utils'
 
 interface ConnectionCardProps {
   profile: ConnectionProfile
+  tag?: Tag
   onDelete: () => void
 }
 
-export function ConnectionCard({ profile, onDelete }: ConnectionCardProps) {
+export function ConnectionCard({ profile, tag, onDelete }: ConnectionCardProps) {
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<DatabaseInfo | null>(null)
   const [testError, setTestError] = useState<string | null>(null)
@@ -66,7 +67,17 @@ export function ConnectionCard({ profile, onDelete }: ConnectionCardProps) {
                 <Database className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <CardTitle className="text-base">{profile.name}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-base">{profile.name}</CardTitle>
+                  {tag && (
+                    <span
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-white"
+                      style={{ backgroundColor: tag.color }}
+                    >
+                      {tag.name}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {profile.database}
                 </p>

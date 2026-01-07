@@ -6,7 +6,8 @@ import type {
   DatabaseInfo,
   CloneOptions,
   CloneProgress,
-  CloneHistoryEntry
+  CloneHistoryEntry,
+  Tag
 } from '@/types'
 
 // Profile hooks
@@ -42,7 +43,8 @@ export async function createProfile(
   database: string,
   user: string,
   password: string,
-  ssl: boolean
+  ssl: boolean,
+  tagId: string | null = null
 ): Promise<ConnectionProfile> {
   return invoke<ConnectionProfile>('create_profile', {
     name,
@@ -51,7 +53,8 @@ export async function createProfile(
     database,
     user,
     password,
-    ssl
+    ssl,
+    tagId
   })
 }
 
@@ -63,7 +66,8 @@ export async function updateProfile(
   database: string,
   user: string,
   password: string,
-  ssl: boolean
+  ssl: boolean,
+  tagId: string | null = null
 ): Promise<ConnectionProfile> {
   return invoke<ConnectionProfile>('update_profile', {
     id,
@@ -73,7 +77,8 @@ export async function updateProfile(
     database,
     user,
     password,
-    ssl
+    ssl,
+    tagId
   })
 }
 
@@ -179,4 +184,42 @@ export async function getHistoryEntry(id: string): Promise<CloneHistoryEntry | n
 
 export async function clearHistory(): Promise<void> {
   return invoke<void>('clear_history')
+}
+
+// Tag hooks
+export function useTags() {
+  const [tags, setTags] = useState<Tag[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchTags = useCallback(async () => {
+    try {
+      setLoading(true)
+      const result = await invoke<Tag[]>('get_tags')
+      setTags(result)
+      setError(null)
+    } catch (e) {
+      setError(e as string)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchTags()
+  }, [fetchTags])
+
+  return { tags, loading, error, refetch: fetchTags }
+}
+
+export async function createTag(name: string, color: string): Promise<Tag> {
+  return invoke<Tag>('create_tag', { name, color })
+}
+
+export async function updateTag(id: string, name: string, color: string): Promise<Tag> {
+  return invoke<Tag>('update_tag', { id, name, color })
+}
+
+export async function deleteTag(id: string): Promise<void> {
+  return invoke<void>('delete_tag', { id })
 }
