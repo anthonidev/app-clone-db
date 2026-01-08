@@ -7,7 +7,9 @@ import type {
   CloneOptions,
   CloneProgress,
   CloneHistoryEntry,
-  Tag
+  Tag,
+  SavedOperation,
+  CloneType
 } from '@/types'
 
 // Profile hooks
@@ -246,4 +248,60 @@ export async function updateTag(id: string, name: string, color: string): Promis
 
 export async function deleteTag(id: string): Promise<void> {
   return invoke<void>('delete_tag', { id })
+}
+
+// Saved Operations hooks
+export function useSavedOperations() {
+  const [savedOperations, setSavedOperations] = useState<SavedOperation[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [initialized, setInitialized] = useState(false)
+
+  const fetchSavedOperations = useCallback(async (isInitial = false) => {
+    try {
+      if (isInitial) setLoading(true)
+      const result = await invoke<SavedOperation[]>('get_saved_operations')
+      setSavedOperations(result)
+      setError(null)
+    } catch (e) {
+      setError(e as string)
+    } finally {
+      if (isInitial) {
+        setLoading(false)
+        setInitialized(true)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!initialized) {
+      fetchSavedOperations(true)
+    }
+  }, [fetchSavedOperations, initialized])
+
+  const refetch = useCallback(() => fetchSavedOperations(false), [fetchSavedOperations])
+
+  return { savedOperations, loading, error, refetch }
+}
+
+export async function createSavedOperation(
+  name: string,
+  sourceId: string,
+  destinationId: string,
+  cleanDestination: boolean,
+  createBackup: boolean,
+  cloneType: CloneType
+): Promise<SavedOperation> {
+  return invoke<SavedOperation>('create_saved_operation', {
+    name,
+    sourceId,
+    destinationId,
+    cleanDestination,
+    createBackup,
+    cloneType
+  })
+}
+
+export async function deleteSavedOperation(id: string): Promise<void> {
+  return invoke<void>('delete_saved_operation', { id })
 }

@@ -9,8 +9,9 @@ mod types;
 use clone::{clear_history, get_history, get_history_entry, start_clone};
 use connection::{check_pg_tools, test_connection, test_connection_by_id};
 use profiles::{
-    create_profile, create_tag, delete_profile, delete_tag, get_profile, get_profiles, get_tags,
-    update_profile, update_tag,
+    create_profile, create_saved_operation, create_tag, delete_profile, delete_saved_operation,
+    delete_tag, get_profile, get_profiles, get_saved_operations, get_tags, update_profile,
+    update_tag,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -31,6 +32,10 @@ pub fn run() {
             create_tag,
             update_tag,
             delete_tag,
+            // Saved operations commands
+            get_saved_operations,
+            create_saved_operation,
+            delete_saved_operation,
             // Connection commands
             check_pg_tools,
             test_connection,

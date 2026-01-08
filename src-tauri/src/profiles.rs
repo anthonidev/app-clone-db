@@ -1,7 +1,7 @@
 use chrono::Utc;
 
 use crate::storage::{load_app_data, save_app_data};
-use crate::types::{ConnectionProfile, Tag};
+use crate::types::{CloneType, ConnectionProfile, SavedOperation, Tag};
 
 #[tauri::command]
 pub fn get_profiles() -> Result<Vec<ConnectionProfile>, String> {
@@ -151,6 +151,55 @@ pub fn delete_tag(id: String) -> Result<(), String> {
         if profile.tag_id.as_ref() == Some(&id) {
             profile.tag_id = None;
         }
+    }
+
+    save_app_data(&data)?;
+    Ok(())
+}
+
+// Saved Operations commands
+
+#[tauri::command]
+pub fn get_saved_operations() -> Result<Vec<SavedOperation>, String> {
+    let data = load_app_data();
+    Ok(data.saved_operations)
+}
+
+#[tauri::command]
+pub fn create_saved_operation(
+    name: String,
+    source_id: String,
+    destination_id: String,
+    clean_destination: bool,
+    create_backup: bool,
+    clone_type: CloneType,
+) -> Result<SavedOperation, String> {
+    let mut data = load_app_data();
+
+    let operation = SavedOperation::new(
+        name,
+        source_id,
+        destination_id,
+        clean_destination,
+        create_backup,
+        clone_type,
+    );
+
+    data.saved_operations.push(operation.clone());
+    save_app_data(&data)?;
+
+    Ok(operation)
+}
+
+#[tauri::command]
+pub fn delete_saved_operation(id: String) -> Result<(), String> {
+    let mut data = load_app_data();
+
+    let initial_len = data.saved_operations.len();
+    data.saved_operations.retain(|o| o.id != id);
+
+    if data.saved_operations.len() == initial_len {
+        return Err("Saved operation not found".to_string());
     }
 
     save_app_data(&data)?;

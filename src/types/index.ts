@@ -74,3 +74,14 @@ export type CloneStage =
   | 'error'
 
 export type CloneType = 'structure' | 'data' | 'both'
+
+export interface SavedOperation {
+  id: string
+  name: string
+  sourceId: string
+  destinationId: string
+  cleanDestination: boolean
+  createBackup: boolean
+  cloneType: CloneType
+  createdAt: string
+}

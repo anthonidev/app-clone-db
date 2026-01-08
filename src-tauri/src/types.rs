@@ -238,10 +238,52 @@ impl CloneHistoryEntry {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SavedOperation {
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "sourceId")]
+    pub source_id: String,
+    #[serde(rename = "destinationId")]
+    pub destination_id: String,
+    #[serde(rename = "cleanDestination")]
+    pub clean_destination: bool,
+    #[serde(rename = "createBackup")]
+    pub create_backup: bool,
+    #[serde(rename = "cloneType")]
+    pub clone_type: CloneType,
+    #[serde(rename = "createdAt")]
+    pub created_at: DateTime<Utc>,
+}
+
+impl SavedOperation {
+    pub fn new(
+        name: String,
+        source_id: String,
+        destination_id: String,
+        clean_destination: bool,
+        create_backup: bool,
+        clone_type: CloneType,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            name,
+            source_id,
+            destination_id,
+            clean_destination,
+            create_backup,
+            clone_type,
+            created_at: Utc::now(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppData {
     pub profiles: Vec<ConnectionProfile>,
     pub history: Vec<CloneHistoryEntry>,
     #[serde(default)]
     pub tags: Vec<Tag>,
+    #[serde(default)]
+    pub saved_operations: Vec<SavedOperation>,
 }
