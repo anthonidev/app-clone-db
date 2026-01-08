@@ -142,6 +142,48 @@ pub fn find_pg_dump() -> Option<String> {
     None
 }
 
+/// Encuentra el ejecutable pg_restore
+/// Primero intenta encontrarlo en el PATH, luego busca en las instalaciones de PostgreSQL
+pub fn find_pg_restore() -> Option<String> {
+    // Primero intentar en el PATH
+    if let Some(path) = find_in_path("pg_restore") {
+        return Some(path);
+    }
+
+    // Buscar en instalaciones de PostgreSQL (Windows)
+    if cfg!(windows) {
+        for bin_dir in find_pg_install_dirs() {
+            let pg_restore_path = bin_dir.join("pg_restore.exe");
+            if pg_restore_path.exists() {
+                if let Some(path_str) = pg_restore_path.to_str() {
+                    // Verificar que funciona
+                    if create_command(path_str).arg("--version").output().is_ok() {
+                        return Some(path_str.to_string());
+                    }
+                }
+            }
+        }
+    } else {
+        // Linux/macOS rutas comunes
+        let unix_paths = vec![
+            "/usr/bin/pg_restore",
+            "/usr/local/bin/pg_restore",
+            "/opt/homebrew/bin/pg_restore",
+            "/usr/local/pgsql/bin/pg_restore",
+        ];
+
+        for path in unix_paths {
+            if std::path::Path::new(path).exists() {
+                if create_command(path).arg("--version").output().is_ok() {
+                    return Some(path.to_string());
+                }
+            }
+        }
+    }
+
+    None
+}
+
 /// Intenta encontrar un ejecutable en el PATH del sistema
 fn find_in_path(executable: &str) -> Option<String> {
     let output = if cfg!(windows) {
@@ -190,5 +232,5 @@ pub fn get_pg_client_version() -> Option<String> {
 
 /// Verifica si las herramientas de PostgreSQL están disponibles
 pub fn check_tools_available() -> bool {
-    find_psql().is_some() && find_pg_dump().is_some()
+    find_psql().is_some() && find_pg_dump().is_some() && find_pg_restore().is_some()
 }

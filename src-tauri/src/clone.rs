@@ -1,13 +1,23 @@
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use tauri::{AppHandle, Emitter};
 
 use crate::command_helper::create_command;
 use crate::connection::get_profile_by_id;
-use crate::pg_tools::{find_pg_dump, find_psql};
+use crate::pg_tools::{find_pg_dump, find_pg_restore, find_psql};
 use crate::storage::{load_app_data, save_app_data};
 use crate::types::{CloneHistoryEntry, CloneOptions, CloneProgress, CloneStatus, CloneType};
+
+/// Get optimal number of parallel jobs based on CPU cores
+fn get_parallel_jobs() -> usize {
+    std::thread::available_parallelism()
+        .map(|p| p.get())
+        .unwrap_or(4)
+        .min(8) // Cap at 8 to avoid overwhelming the database
+        .max(2) // At least 2 for meaningful parallelism
+}
 
 fn emit_progress(app: &AppHandle, progress: CloneProgress) {
     let _ = app.emit("clone-progress", &progress);
@@ -26,6 +36,7 @@ pub async fn start_clone(app: AppHandle, options: CloneOptions) -> Result<String
 
     let pg_dump = find_pg_dump().ok_or("pg_dump not found. Please install PostgreSQL client tools.")?;
     let psql = find_psql().ok_or("psql not found. Please install PostgreSQL client tools.")?;
+    let pg_restore = find_pg_restore().ok_or("pg_restore not found. Please install PostgreSQL client tools.")?;
 
     // Create history entry
     let history_entry = Arc::new(Mutex::new(CloneHistoryEntry::new(
@@ -45,6 +56,7 @@ pub async fn start_clone(app: AppHandle, options: CloneOptions) -> Result<String
             &app_clone,
             &pg_dump,
             &psql,
+            &pg_restore,
             &source,
             &destination,
             &options,
@@ -79,6 +91,7 @@ async fn execute_clone(
     app: &AppHandle,
     pg_dump: &str,
     psql: &str,
+    pg_restore: &str,
     source: &crate::types::ConnectionProfile,
     destination: &crate::types::ConnectionProfile,
     options: &CloneOptions,
@@ -139,50 +152,115 @@ async fn execute_clone(
 
     // Stage 3: Clean destination (if enabled)
     if options.clean_destination {
-        emit_progress(app, CloneProgress::new("cleaning", 25, "Cleaning destination database..."));
-        add_log("[INFO] Cleaning destination database...");
-
         let conn_str = format!(
             "host={} port={} dbname={} user={}",
             destination.host, destination.port, destination.database, destination.user
         );
 
-        // Drop all tables in public schema
-        let drop_query = r#"
-            DO $$ DECLARE
-                r RECORD;
-            BEGIN
-                FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
-                    EXECUTE 'DROP TABLE IF EXISTS public.' || quote_ident(r.tablename) || ' CASCADE';
-                END LOOP;
-            END $$;
-        "#;
+        // For data-only mode, use TRUNCATE to preserve table structure
+        // For structure/both modes, use DROP to remove everything
+        let is_data_only = matches!(options.clone_type, CloneType::Data);
 
-        let clean_output = create_command(psql)
-            .env("PGPASSWORD", &destination.password)
-            .env("PGSSLMODE", if destination.ssl { "require" } else { "prefer" })
-            .args(["-d", &conn_str, "-c", drop_query])
-            .output()
-            .map_err(|e| format!("Failed to clean destination: {}", e))?;
+        if is_data_only {
+            emit_progress(app, CloneProgress::new("cleaning", 25, "Truncating destination tables..."));
+            add_log("[INFO] Truncating destination tables (preserving structure)...");
 
-        if !clean_output.status.success() {
-            let stderr = String::from_utf8_lossy(&clean_output.stderr);
-            add_log(&format!("[WARNING] Clean warning: {}", stderr));
+            // Truncate all tables in public schema (faster than DELETE, resets sequences)
+            let truncate_query = r#"
+                DO $$ DECLARE
+                    r RECORD;
+                BEGIN
+                    -- Disable triggers temporarily for faster truncate
+                    SET session_replication_role = 'replica';
+                    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+                        EXECUTE 'TRUNCATE TABLE public.' || quote_ident(r.tablename) || ' CASCADE';
+                    END LOOP;
+                    -- Re-enable triggers
+                    SET session_replication_role = 'origin';
+                END $$;
+            "#;
+
+            let clean_output = create_command(psql)
+                .env("PGPASSWORD", &destination.password)
+                .env("PGSSLMODE", if destination.ssl { "require" } else { "prefer" })
+                .args(["-d", &conn_str, "-c", truncate_query])
+                .output()
+                .map_err(|e| format!("Failed to truncate destination: {}", e))?;
+
+            if !clean_output.status.success() {
+                let stderr = String::from_utf8_lossy(&clean_output.stderr);
+                add_log(&format!("[WARNING] Truncate warning: {}", stderr));
+            } else {
+                add_log("[SUCCESS] Destination tables truncated");
+            }
         } else {
-            add_log("[SUCCESS] Destination database cleaned");
+            emit_progress(app, CloneProgress::new("cleaning", 25, "Cleaning destination database..."));
+            add_log("[INFO] Dropping destination tables...");
+
+            // Drop all tables in public schema
+            let drop_query = r#"
+                DO $$ DECLARE
+                    r RECORD;
+                BEGIN
+                    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+                        EXECUTE 'DROP TABLE IF EXISTS public.' || quote_ident(r.tablename) || ' CASCADE';
+                    END LOOP;
+                END $$;
+            "#;
+
+            let clean_output = create_command(psql)
+                .env("PGPASSWORD", &destination.password)
+                .env("PGSSLMODE", if destination.ssl { "require" } else { "prefer" })
+                .args(["-d", &conn_str, "-c", drop_query])
+                .output()
+                .map_err(|e| format!("Failed to clean destination: {}", e))?;
+
+            if !clean_output.status.success() {
+                let stderr = String::from_utf8_lossy(&clean_output.stderr);
+                add_log(&format!("[WARNING] Clean warning: {}", stderr));
+            } else {
+                add_log("[SUCCESS] Destination database cleaned");
+            }
         }
     }
 
     // Stage 4: Dump source
+    let parallel_jobs = get_parallel_jobs();
+    let dump_start = Instant::now();
     emit_progress(app, CloneProgress::new("dumping", 40, "Dumping source database..."));
-    add_log("[INFO] Dumping source database...");
 
     let source_conn_str = format!(
         "host={} port={} dbname={} user={}",
         source.host, source.port, source.database, source.user
     );
 
+    let dest_conn_str = format!(
+        "host={} port={} dbname={} user={}",
+        destination.host, destination.port, destination.database, destination.user
+    );
+
+    // For data-only mode, we use plain SQL format since pg_restore with --data-only
+    // requires tables to exist. For structure and both, we use custom format for parallel restore.
+    let use_custom_format = !matches!(options.clone_type, CloneType::Data);
+
+    if use_custom_format {
+        add_log("[INFO] Using custom format with parallel restore...");
+        add_log(&format!("[INFO] Will use {} parallel jobs for restore", parallel_jobs));
+    } else {
+        add_log("[INFO] Using plain SQL format for data-only clone...");
+    }
+
     let mut dump_args = vec!["-d".to_string(), source_conn_str];
+
+    if use_custom_format {
+        // Custom format for parallel restore
+        dump_args.push("-Fc".to_string());
+        dump_args.push("-Z".to_string());
+        dump_args.push("1".to_string()); // Light compression (faster for remote)
+    } else {
+        // Plain format for data-only (will be piped directly)
+        dump_args.push("-Fp".to_string()); // Plain format
+    }
 
     // Add clone type options
     match options.clone_type {
@@ -192,6 +270,7 @@ async fn execute_clone(
         }
         CloneType::Data => {
             dump_args.push("--data-only".to_string());
+            dump_args.push("--disable-triggers".to_string()); // Faster data restore
             add_log("[INFO] Dumping data only");
         }
         CloneType::Both => {
@@ -207,11 +286,10 @@ async fn execute_clone(
     }
 
     // Create temp file for dump
-    let dump_path = std::env::temp_dir().join(format!("pg_clone_{}.sql", uuid::Uuid::new_v4()));
+    let dump_ext = if use_custom_format { "dump" } else { "sql" };
+    let dump_path = std::env::temp_dir().join(format!("pg_clone_{}.{}", uuid::Uuid::new_v4(), dump_ext));
     dump_args.push("-f".to_string());
     dump_args.push(dump_path.to_str().unwrap().to_string());
-
-    add_log(&format!("[INFO] Running pg_dump with args: {:?}", dump_args));
 
     let dump_output = create_command(pg_dump)
         .env("PGPASSWORD", &source.password)
@@ -227,50 +305,127 @@ async fn execute_clone(
         return Err(format!("Failed to dump source database: {}", stderr));
     }
 
-    add_log("[SUCCESS] Source database dumped successfully");
+    let dump_duration = dump_start.elapsed();
+    add_log(&format!("[SUCCESS] Source database dumped in {:.1}s", dump_duration.as_secs_f64()));
 
     // Get dump file size
     if let Ok(metadata) = std::fs::metadata(&dump_path) {
-        add_log(&format!("[INFO] Dump file size: {} bytes", metadata.len()));
+        let size_mb = metadata.len() as f64 / 1024.0 / 1024.0;
+        add_log(&format!("[INFO] Dump file size: {:.2} MB", size_mb));
     }
 
     // Stage 5: Restore to destination
-    emit_progress(app, CloneProgress::new("restoring", 70, "Restoring to destination..."));
-    add_log("[INFO] Restoring to destination database...");
+    let restore_start = Instant::now();
 
-    let dest_conn_str = format!(
-        "host={} port={} dbname={} user={}",
-        destination.host, destination.port, destination.database, destination.user
-    );
+    if use_custom_format {
+        // Use pg_restore with parallel jobs for custom format
+        emit_progress(app, CloneProgress::new("restoring", 70, &format!("Restoring with {} parallel jobs...", parallel_jobs)));
+        add_log(&format!("[INFO] Restoring with pg_restore ({} parallel jobs)...", parallel_jobs));
 
-    let restore_process = create_command(psql)
-        .env("PGPASSWORD", &destination.password)
-        .env("PGSSLMODE", if destination.ssl { "require" } else { "prefer" })
-        .args(["-d", &dest_conn_str, "-f", dump_path.to_str().unwrap()])
-        .stderr(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Failed to start restore: {}", e))?;
+        let restore_args = vec![
+            "-d".to_string(),
+            dest_conn_str.clone(),
+            "-j".to_string(),
+            parallel_jobs.to_string(),
+            "--no-owner".to_string(),
+            "--no-privileges".to_string(),
+            "-v".to_string(),
+            dump_path.to_str().unwrap().to_string(),
+        ];
 
-    let output = restore_process
-        .wait_with_output()
-        .map_err(|e| format!("Failed to wait for restore: {}", e))?;
+        let restore_process = create_command(pg_restore)
+            .env("PGPASSWORD", &destination.password)
+            .env("PGSSLMODE", if destination.ssl { "require" } else { "prefer" })
+            .args(&restore_args)
+            .stderr(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to start restore: {}", e))?;
+
+        let output = restore_process
+            .wait_with_output()
+            .map_err(|e| format!("Failed to wait for restore: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if stderr.to_lowercase().contains("error") && !stderr.contains("pg_restore: warning") {
+                let _ = std::fs::remove_file(&dump_path);
+                add_log(&format!("[ERROR] Restore errors: {}", stderr));
+                return Err(format!("Failed to restore to destination: {}", stderr));
+            } else if !stderr.is_empty() {
+                let warning_count = stderr.matches("warning").count();
+                if warning_count > 0 {
+                    add_log(&format!("[WARNING] Restore completed with {} warnings", warning_count));
+                }
+            }
+        }
+    } else {
+        // Use psql for plain SQL format (data-only)
+        emit_progress(app, CloneProgress::new("restoring", 70, "Restoring data..."));
+        add_log("[INFO] Restoring with psql (optimized settings)...");
+
+        // Create optimized restore script with performance settings
+        let optimized_path = std::env::temp_dir().join(format!("pg_clone_optimized_{}.sql", uuid::Uuid::new_v4()));
+
+        // Performance settings to prepend
+        let perf_settings = r#"-- Performance optimizations for faster restore
+SET synchronous_commit = off;
+SET work_mem = '256MB';
+SET maintenance_work_mem = '512MB';
+SET max_parallel_workers_per_gather = 0;
+SET session_replication_role = 'replica';
+
+"#;
+
+        // Read dump content and prepend settings
+        let dump_content = std::fs::read_to_string(&dump_path)
+            .map_err(|e| format!("Failed to read dump file: {}", e))?;
+
+        // Add reset at the end
+        let reset_settings = r#"
+
+-- Reset settings
+SET session_replication_role = 'origin';
+SET synchronous_commit = on;
+"#;
+
+        let optimized_content = format!("{}{}{}", perf_settings, dump_content, reset_settings);
+        std::fs::write(&optimized_path, optimized_content)
+            .map_err(|e| format!("Failed to write optimized script: {}", e))?;
+
+        let restore_process = create_command(psql)
+            .env("PGPASSWORD", &destination.password)
+            .env("PGSSLMODE", if destination.ssl { "require" } else { "prefer" })
+            .args(["-d", &dest_conn_str, "-f", optimized_path.to_str().unwrap()])
+            .stderr(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to start restore: {}", e))?;
+
+        let output = restore_process
+            .wait_with_output()
+            .map_err(|e| format!("Failed to wait for restore: {}", e))?;
+
+        // Clean up optimized file
+        let _ = std::fs::remove_file(&optimized_path);
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if stderr.contains("ERROR") {
+                let _ = std::fs::remove_file(&dump_path);
+                add_log(&format!("[ERROR] Restore errors: {}", stderr));
+                return Err(format!("Failed to restore to destination: {}", stderr));
+            } else if !stderr.is_empty() {
+                add_log(&format!("[WARNING] Restore warnings: {}", stderr));
+            }
+        }
+    }
 
     // Clean up temp file
     let _ = std::fs::remove_file(&dump_path);
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        // Some warnings are OK
-        if stderr.contains("ERROR") {
-            add_log(&format!("[ERROR] Restore errors: {}", stderr));
-            return Err(format!("Failed to restore to destination: {}", stderr));
-        } else {
-            add_log(&format!("[WARNING] Restore warnings: {}", stderr));
-        }
-    }
-
-    add_log("[SUCCESS] Database restored successfully");
+    let restore_duration = restore_start.elapsed();
+    add_log(&format!("[SUCCESS] Database restored in {:.1}s", restore_duration.as_secs_f64()));
 
     // Stage 6: Verify
     emit_progress(app, CloneProgress::new("verifying", 90, "Verifying clone..."));
