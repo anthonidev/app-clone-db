@@ -4,13 +4,15 @@ import { useEffect, useState, useCallback } from 'react'
 import type {
   ConnectionProfile,
   DatabaseInfo,
+  DatabaseStructure,
   CloneOptions,
   CloneProgress,
   CloneHistoryEntry,
   Tag,
   SavedOperation,
   CloneType,
-  SchemaProgress
+  SchemaProgress,
+  SchemaExportOptions
 } from '@/types'
 
 // Profile hooks
@@ -308,8 +310,12 @@ export async function deleteSavedOperation(id: string): Promise<void> {
 }
 
 // Schema download hooks
-export async function downloadSchema(profileId: string): Promise<string> {
-  return invoke<string>('download_schema', { profileId })
+export async function downloadSchema(options: SchemaExportOptions): Promise<string> {
+  return invoke<string>('download_schema', { options })
+}
+
+export async function getDatabaseStructure(profileId: string): Promise<DatabaseStructure> {
+  return invoke<DatabaseStructure>('get_database_structure', { profileId })
 }
 
 export function useSchemaProgress() {

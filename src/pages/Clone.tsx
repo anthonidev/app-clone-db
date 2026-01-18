@@ -43,6 +43,7 @@ import {
 import { DatabaseSelectorModal } from "@/components/DatabaseSelectorModal";
 import { SaveOperationModal } from "@/components/SaveOperationModal";
 import { LoadOperationModal } from "@/components/LoadOperationModal";
+import { useNotification } from "@/hooks/use-notification";
 import type { CloneOptions, CloneType, SavedOperation } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -56,7 +57,9 @@ export function Clone() {
   const { progress, logs, reset } = useCloneProgress();
   const { savedOperations, refetch: refetchSavedOperations } =
     useSavedOperations();
+  const { notifySuccess, notifyError } = useNotification();
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const notifiedRef = useRef(false);
 
   const [step, setStep] = useState<Step>("databases");
   const [sourceId, setSourceId] = useState(searchParams.get("source") || "");
@@ -111,6 +114,20 @@ export function Clone() {
   useEffect(() => {
     if (progress?.isComplete) {
       setCloning(false);
+
+      // Show notification (only once)
+      if (!notifiedRef.current) {
+        notifiedRef.current = true;
+        if (progress.isError) {
+          notifyError("Clone Failed", progress.message);
+        } else {
+          notifySuccess(
+            "Clone Completed",
+            `Successfully cloned ${sourceProfile?.name || "source"} to ${destinationProfile?.name || "destination"}`
+          );
+        }
+      }
+
       // Save operation if pending and clone was successful
       if (pendingOperationName && !progress.isError) {
         createSavedOperation(
@@ -128,16 +145,26 @@ export function Clone() {
           .catch(console.error);
       }
     }
+
+    // Reset notification flag when progress is reset
+    if (!progress) {
+      notifiedRef.current = false;
+    }
   }, [
     progress?.isComplete,
     progress?.isError,
+    progress?.message,
     pendingOperationName,
     sourceId,
     destinationId,
     cleanDestination,
     createBackup,
     cloneType,
+    sourceProfile?.name,
+    destinationProfile?.name,
     refetchSavedOperations,
+    notifySuccess,
+    notifyError,
   ]);
 
   const handleReset = () => {

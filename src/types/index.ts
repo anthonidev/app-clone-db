@@ -93,3 +93,27 @@ export interface SchemaProgress {
   isComplete: boolean
   isError: boolean
 }
+
+export interface SchemaInfo {
+  name: string
+  tableCount: number
+}
+
+export interface DatabaseStructure {
+  schemas: SchemaInfo[]
+  tables: TableInfo[]
+}
+
+export interface SchemaExportOptions {
+  profileId: string
+  schemas: string[]
+  tables: string[]
+  includeComments: boolean
+  includeIndexes: boolean
+  includeConstraints: boolean
+  includeTriggers: boolean
+  includeSequences: boolean
+  includeTypes: boolean
+  includeFunctions: boolean
+  includeViews: boolean
+}
