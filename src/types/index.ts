@@ -85,3 +85,11 @@ export interface SavedOperation {
   cloneType: CloneType
   createdAt: string
 }
+
+export interface SchemaProgress {
+  stage: string
+  progress: number
+  message: string
+  isComplete: boolean
+  isError: boolean
+}

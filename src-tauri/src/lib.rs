@@ -3,6 +3,7 @@ mod command_helper;
 mod connection;
 mod pg_tools;
 mod profiles;
+mod schema;
 mod storage;
 mod types;
 
@@ -13,6 +14,7 @@ use profiles::{
     delete_tag, get_profile, get_profiles, get_saved_operations, get_tags, update_profile,
     update_tag,
 };
+use schema::download_schema;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -20,6 +22,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
             // Profile commands
             get_profiles,
@@ -45,6 +49,8 @@ pub fn run() {
             get_history,
             get_history_entry,
             clear_history,
+            // Schema commands
+            download_schema,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

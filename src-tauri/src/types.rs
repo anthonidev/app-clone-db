@@ -287,3 +287,46 @@ pub struct AppData {
     #[serde(default)]
     pub saved_operations: Vec<SavedOperation>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SchemaProgress {
+    pub stage: String,
+    pub progress: u8,
+    pub message: String,
+    #[serde(rename = "isComplete")]
+    pub is_complete: bool,
+    #[serde(rename = "isError")]
+    pub is_error: bool,
+}
+
+impl SchemaProgress {
+    pub fn new(stage: &str, progress: u8, message: &str) -> Self {
+        Self {
+            stage: stage.to_string(),
+            progress,
+            message: message.to_string(),
+            is_complete: false,
+            is_error: false,
+        }
+    }
+
+    pub fn completed(message: &str) -> Self {
+        Self {
+            stage: "completed".to_string(),
+            progress: 100,
+            message: message.to_string(),
+            is_complete: true,
+            is_error: false,
+        }
+    }
+
+    pub fn error(message: &str) -> Self {
+        Self {
+            stage: "error".to_string(),
+            progress: 0,
+            message: message.to_string(),
+            is_complete: true,
+            is_error: true,
+        }
+    }
+}

@@ -8,6 +8,9 @@
     "opener:default",
     "updater:default",
     "process:default",
-    "core:app:default"
+    "core:app:default",
+    "dialog:default",
+    "fs:default",
+    "fs:allow-write-text-file"
   ]
 }

@@ -8,6 +8,7 @@ import { ConnectionForm } from "@/pages/ConnectionForm";
 import { Clone } from "@/pages/Clone";
 import { History } from "@/pages/History";
 import { Settings } from "@/pages/Settings";
+import { DownloadSchema } from "@/pages/DownloadSchema";
 import { useColorTheme } from "@/hooks/use-color-theme";
 
 function App() {
@@ -25,6 +26,7 @@ function App() {
             <Route path="/clone" element={<Clone />} />
             <Route path="/history" element={<History />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/download-schema" element={<DownloadSchema />} />
           </Routes>
         </Layout>
         <Toaster />

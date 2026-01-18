@@ -9,7 +9,8 @@ import type {
   CloneHistoryEntry,
   Tag,
   SavedOperation,
-  CloneType
+  CloneType,
+  SchemaProgress
 } from '@/types'
 
 // Profile hooks
@@ -304,4 +305,43 @@ export async function createSavedOperation(
 
 export async function deleteSavedOperation(id: string): Promise<void> {
   return invoke<void>('delete_saved_operation', { id })
+}
+
+// Schema download hooks
+export async function downloadSchema(profileId: string): Promise<string> {
+  return invoke<string>('download_schema', { profileId })
+}
+
+export function useSchemaProgress() {
+  const [progress, setProgress] = useState<SchemaProgress | null>(null)
+  const [logs, setLogs] = useState<string[]>([])
+
+  useEffect(() => {
+    let unlistenProgress: UnlistenFn | undefined
+    let unlistenLog: UnlistenFn | undefined
+
+    const setup = async () => {
+      unlistenProgress = await listen<SchemaProgress>('schema-progress', (event) => {
+        setProgress(event.payload)
+      })
+
+      unlistenLog = await listen<string>('schema-log', (event) => {
+        setLogs((prev) => [...prev, event.payload])
+      })
+    }
+
+    setup()
+
+    return () => {
+      unlistenProgress?.()
+      unlistenLog?.()
+    }
+  }, [])
+
+  const reset = useCallback(() => {
+    setProgress(null)
+    setLogs([])
+  }, [])
+
+  return { progress, logs, reset }
 }
