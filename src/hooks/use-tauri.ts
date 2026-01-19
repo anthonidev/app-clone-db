@@ -4,12 +4,15 @@ import { useEffect, useState, useCallback } from 'react'
 import type {
   ConnectionProfile,
   DatabaseInfo,
+  DatabaseStructure,
   CloneOptions,
   CloneProgress,
   CloneHistoryEntry,
   Tag,
   SavedOperation,
-  CloneType
+  CloneType,
+  SchemaProgress,
+  SchemaExportOptions
 } from '@/types'
 
 // Profile hooks
@@ -304,4 +307,47 @@ export async function createSavedOperation(
 
 export async function deleteSavedOperation(id: string): Promise<void> {
   return invoke<void>('delete_saved_operation', { id })
+}
+
+// Schema download hooks
+export async function downloadSchema(options: SchemaExportOptions): Promise<string> {
+  return invoke<string>('download_schema', { options })
+}
+
+export async function getDatabaseStructure(profileId: string): Promise<DatabaseStructure> {
+  return invoke<DatabaseStructure>('get_database_structure', { profileId })
+}
+
+export function useSchemaProgress() {
+  const [progress, setProgress] = useState<SchemaProgress | null>(null)
+  const [logs, setLogs] = useState<string[]>([])
+
+  useEffect(() => {
+    let unlistenProgress: UnlistenFn | undefined
+    let unlistenLog: UnlistenFn | undefined
+
+    const setup = async () => {
+      unlistenProgress = await listen<SchemaProgress>('schema-progress', (event) => {
+        setProgress(event.payload)
+      })
+
+      unlistenLog = await listen<string>('schema-log', (event) => {
+        setLogs((prev) => [...prev, event.payload])
+      })
+    }
+
+    setup()
+
+    return () => {
+      unlistenProgress?.()
+      unlistenLog?.()
+    }
+  }, [])
+
+  const reset = useCallback(() => {
+    setProgress(null)
+    setLogs([])
+  }, [])
+
+  return { progress, logs, reset }
 }

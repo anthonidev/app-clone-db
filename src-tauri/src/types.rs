@@ -287,3 +287,99 @@ pub struct AppData {
     #[serde(default)]
     pub saved_operations: Vec<SavedOperation>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SchemaProgress {
+    pub stage: String,
+    pub progress: u8,
+    pub message: String,
+    #[serde(rename = "isComplete")]
+    pub is_complete: bool,
+    #[serde(rename = "isError")]
+    pub is_error: bool,
+}
+
+impl SchemaProgress {
+    pub fn new(stage: &str, progress: u8, message: &str) -> Self {
+        Self {
+            stage: stage.to_string(),
+            progress,
+            message: message.to_string(),
+            is_complete: false,
+            is_error: false,
+        }
+    }
+
+    pub fn completed(message: &str) -> Self {
+        Self {
+            stage: "completed".to_string(),
+            progress: 100,
+            message: message.to_string(),
+            is_complete: true,
+            is_error: false,
+        }
+    }
+
+    pub fn error(message: &str) -> Self {
+        Self {
+            stage: "error".to_string(),
+            progress: 0,
+            message: message.to_string(),
+            is_complete: true,
+            is_error: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SchemaInfo {
+    pub name: String,
+    #[serde(rename = "tableCount")]
+    pub table_count: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatabaseStructure {
+    pub schemas: Vec<SchemaInfo>,
+    pub tables: Vec<TableInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SchemaExportOptions {
+    #[serde(rename = "profileId")]
+    pub profile_id: String,
+    /// List of schemas to include (empty = all schemas)
+    #[serde(default)]
+    pub schemas: Vec<String>,
+    /// List of tables to include in format "schema.table" (empty = all tables)
+    #[serde(default)]
+    pub tables: Vec<String>,
+    /// Include comments (COMMENT ON statements)
+    #[serde(rename = "includeComments", default = "default_true")]
+    pub include_comments: bool,
+    /// Include indexes
+    #[serde(rename = "includeIndexes", default = "default_true")]
+    pub include_indexes: bool,
+    /// Include constraints (foreign keys, unique, check)
+    #[serde(rename = "includeConstraints", default = "default_true")]
+    pub include_constraints: bool,
+    /// Include triggers
+    #[serde(rename = "includeTriggers", default = "default_true")]
+    pub include_triggers: bool,
+    /// Include sequences
+    #[serde(rename = "includeSequences", default = "default_true")]
+    pub include_sequences: bool,
+    /// Include types (enums, custom types)
+    #[serde(rename = "includeTypes", default = "default_true")]
+    pub include_types: bool,
+    /// Include functions/procedures
+    #[serde(rename = "includeFunctions", default = "default_true")]
+    pub include_functions: bool,
+    /// Include views
+    #[serde(rename = "includeViews", default = "default_true")]
+    pub include_views: bool,
+}
+
+fn default_true() -> bool {
+    true
+}

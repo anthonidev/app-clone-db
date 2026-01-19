@@ -8,6 +8,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  FileDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -25,6 +26,7 @@ interface LayoutProps {
 const navItems = [
   { href: "/", icon: Home, label: "Home" },
   { href: "/clone", icon: Database, label: "Clone" },
+  { href: "/download-schema", icon: FileDown, label: "Schema" },
   { href: "/history", icon: History, label: "History" },
   { href: "/settings", icon: Settings, label: "Settings" },
 ];
