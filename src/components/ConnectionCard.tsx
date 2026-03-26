@@ -1,9 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Database, Edit, Trash2, Loader2, CheckCircle, XCircle, Server } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Database, Edit, Trash2, Loader2, CheckCircle, XCircle, Server, Copy, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
   DialogContent,
@@ -59,97 +57,109 @@ export function ConnectionCard({ profile, tag, onDelete }: ConnectionCardProps) 
 
   return (
     <>
-      <Card className="hover:shadow-md transition-shadow">
-        <CardHeader className="pb-3">
+      <div className="group relative rounded-xl border bg-card text-card-foreground overflow-hidden transition-all hover:shadow-lg hover:border-primary/20">
+        {/* Tag accent bar with label */}
+        {tag && (
+          <div className="flex items-center gap-2 px-3 py-1 bg-muted/60">
+            <div
+              className="shrink-0 w-2 h-2 rounded-full"
+              style={{ backgroundColor: tag.color }}
+            />
+            <span className="text-[10px] font-medium text-muted-foreground truncate">
+              {tag.name}
+            </span>
+          </div>
+        )}
+
+        <div className="p-4 space-y-3">
+          {/* Header */}
           <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Database className="h-5 w-5 text-primary" />
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="shrink-0 p-2 bg-primary/10 rounded-lg">
+                <Database className="h-4 w-4 text-primary" />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-base">{profile.name}</CardTitle>
-                  {tag && (
-                    <span
-                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                      style={{ backgroundColor: tag.color }}
-                    >
-                      {tag.name}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
+              <div className="min-w-0">
+                <h3 className="font-semibold text-sm truncate">{profile.name}</h3>
+                <p className="text-xs text-muted-foreground truncate mt-0.5">
                   {profile.database}
                 </p>
               </div>
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
               <Link to={`/connection/${profile.id}/edit`}>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <Edit className="h-4 w-4" />
+                <Button variant="ghost" size="icon" className="h-7 w-7">
+                  <Edit className="h-3.5 w-3.5" />
                 </Button>
               </Link>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-destructive hover:text-destructive"
+                className="h-7 w-7 text-destructive hover:text-destructive"
                 onClick={() => setShowDeleteDialog(true)}
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Server className="h-4 w-4" />
-            <span>{profile.host}:{profile.port}</span>
+
+          {/* Connection info */}
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5">
+              <Server className="h-3 w-3" />
+              <span>{profile.host}:{profile.port}</span>
+            </div>
             {profile.ssl && (
-              <Badge variant="secondary" className="text-xs">SSL</Badge>
+              <div className="flex items-center gap-1 text-green-600">
+                <Lock className="h-3 w-3" />
+                <span>SSL</span>
+              </div>
             )}
           </div>
 
-          <div className="flex gap-2">
+          {/* Actions */}
+          <div className="flex gap-2 pt-1">
             <Button
               variant="outline"
               size="sm"
-              className="flex-1"
+              className="flex-1 h-8 text-xs"
               onClick={handleTest}
               disabled={testing}
             >
               {testing ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
               ) : testResult ? (
-                <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
+                <CheckCircle className="h-3.5 w-3.5 mr-1.5 text-green-500" />
               ) : testError ? (
-                <XCircle className="h-4 w-4 mr-2 text-red-500" />
+                <XCircle className="h-3.5 w-3.5 mr-1.5 text-red-500" />
               ) : null}
               Test
             </Button>
             <Link to={`/clone?source=${profile.id}`} className="flex-1">
-              <Button size="sm" className="w-full">
+              <Button size="sm" className="w-full h-8 text-xs">
+                <Copy className="h-3.5 w-3.5 mr-1.5" />
                 Clone
               </Button>
             </Link>
           </div>
 
+          {/* Test result */}
           {testResult && (
-            <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-md text-sm space-y-1">
-              <p className="text-green-600 font-medium">Connection successful!</p>
+            <div className="p-2.5 bg-green-500/10 border border-green-500/20 rounded-lg text-xs space-y-0.5">
+              <p className="text-green-600 font-medium">Connected</p>
               <p className="text-muted-foreground">
-                {testResult.tables.length} tables, {formatBytes(testResult.totalSize)}
+                {testResult.tables.length} tables &middot; {formatBytes(testResult.totalSize)}
               </p>
             </div>
           )}
 
           {testError && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md text-sm">
+            <div className="p-2.5 bg-red-500/10 border border-red-500/20 rounded-lg text-xs">
               <p className="text-red-600 font-medium">Connection failed</p>
-              <p className="text-muted-foreground text-xs mt-1">{testError}</p>
+              <p className="text-muted-foreground mt-0.5 line-clamp-2">{testError}</p>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>

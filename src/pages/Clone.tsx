@@ -12,15 +12,12 @@ import {
   RotateCcw,
   Star,
   FolderOpen,
+  Server,
+  Shield,
+  Trash2,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
@@ -44,10 +41,79 @@ import { DatabaseSelectorModal } from "@/components/DatabaseSelectorModal";
 import { SaveOperationModal } from "@/components/SaveOperationModal";
 import { LoadOperationModal } from "@/components/LoadOperationModal";
 import { useNotification } from "@/hooks/use-notification";
-import type { CloneOptions, CloneType, SavedOperation } from "@/types";
+import type { CloneOptions, CloneType, ConnectionProfile, SavedOperation } from "@/types";
 import { cn } from "@/lib/utils";
 
 type Step = "databases" | "options" | "progress";
+
+function DatabaseCard({
+  label,
+  profile,
+  tagName,
+  tagColor,
+  color,
+  onClick,
+}: {
+  label: string;
+  profile?: ConnectionProfile;
+  tagName?: string;
+  tagColor?: string;
+  color: "blue" | "green";
+  onClick: () => void;
+}) {
+  const colorMap = {
+    blue: { bg: "bg-blue-500/10", text: "text-blue-500", border: "border-blue-500/30" },
+    green: { bg: "bg-green-500/10", text: "text-green-500", border: "border-green-500/30" },
+  };
+  const c = colorMap[color];
+
+  return (
+    <button
+      type="button"
+      className={cn(
+        "w-full text-left rounded-xl border-2 p-5 transition-all hover:shadow-md",
+        profile ? `${c.border} bg-card` : "border-dashed border-muted-foreground/25 hover:border-muted-foreground/40"
+      )}
+      onClick={onClick}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <div className={cn("p-1.5 rounded-lg", c.bg)}>
+          <Database className={cn("h-4 w-4", c.text)} />
+        </div>
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          {label}
+        </span>
+      </div>
+
+      {profile ? (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-base">{profile.name}</span>
+            {tagName && (
+              <span
+                className="px-1.5 py-0.5 rounded text-[10px] font-medium text-white"
+                style={{ backgroundColor: tagColor }}
+              >
+                {tagName}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Server className="h-3 w-3" />
+            <span>
+              {profile.host}:{profile.port}/{profile.database}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-4 text-muted-foreground">
+          <Database className="h-8 w-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">Click to select</p>
+        </div>
+      )}
+    </button>
+  );
+}
 
 export function Clone() {
   const navigate = useNavigate();
@@ -81,7 +147,6 @@ export function Clone() {
   const sourceProfile = profiles.find((p) => p.id === sourceId);
   const destinationProfile = profiles.find((p) => p.id === destinationId);
 
-  // Auto-scroll logs
   useEffect(() => {
     if (logsEndRef.current) {
       logsEndRef.current.scrollIntoView({ behavior: "smooth" });
@@ -115,7 +180,6 @@ export function Clone() {
     if (progress?.isComplete) {
       setCloning(false);
 
-      // Show notification (only once)
       if (!notifiedRef.current) {
         notifiedRef.current = true;
         if (progress.isError) {
@@ -128,7 +192,6 @@ export function Clone() {
         }
       }
 
-      // Save operation if pending and clone was successful
       if (pendingOperationName && !progress.isError) {
         createSavedOperation(
           pendingOperationName,
@@ -146,7 +209,6 @@ export function Clone() {
       }
     }
 
-    // Reset notification flag when progress is reset
     if (!progress) {
       notifiedRef.current = false;
     }
@@ -251,15 +313,16 @@ export function Clone() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">Clone Database</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-xl font-bold">Clone Database</h1>
+            <p className="text-sm text-muted-foreground">
               Clone a PostgreSQL database from source to destination
             </p>
           </div>
@@ -267,9 +330,9 @@ export function Clone() {
         {step !== "progress" && (
           <div className="flex items-center gap-2">
             {pendingOperationName && (
-              <span className="text-sm text-muted-foreground flex items-center gap-1">
-                <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                Will save as "{pendingOperationName}"
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />
+                Save as "{pendingOperationName}"
               </span>
             )}
             <Button
@@ -285,18 +348,18 @@ export function Clone() {
             >
               <Star
                 className={cn(
-                  "h-4 w-4 mr-2",
+                  "h-3.5 w-3.5 mr-1.5",
                   pendingOperationName && "text-yellow-500 fill-yellow-500"
                 )}
               />
-              {pendingOperationName ? "Change Name" : "Save Operation"}
+              {pendingOperationName ? "Change Name" : "Save"}
             </Button>
           </div>
         )}
       </div>
 
       {/* Step indicator */}
-      <div className="flex items-center justify-center gap-4">
+      <div className="flex items-center justify-center">
         {steps.map((s, i) => {
           const Icon = s.icon;
           const isActive = currentStepIndex === i;
@@ -307,7 +370,7 @@ export function Clone() {
               <div className="flex flex-col items-center">
                 <div
                   className={cn(
-                    "w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300",
+                    "w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300",
                     isCompleted
                       ? "bg-primary text-primary-foreground"
                       : isActive
@@ -316,14 +379,14 @@ export function Clone() {
                   )}
                 >
                   {isCompleted ? (
-                    <CheckCircle2 className="h-6 w-6" />
+                    <CheckCircle2 className="h-5 w-5" />
                   ) : (
-                    <Icon className="h-5 w-5" />
+                    <Icon className="h-4 w-4" />
                   )}
                 </div>
                 <span
                   className={cn(
-                    "text-sm mt-2 font-medium transition-colors",
+                    "text-xs mt-1.5 font-medium transition-colors",
                     isActive ? "text-primary" : "text-muted-foreground"
                   )}
                 >
@@ -333,7 +396,7 @@ export function Clone() {
               {i < steps.length - 1 && (
                 <div
                   className={cn(
-                    "h-0.5 w-20 mx-4 transition-colors duration-300",
+                    "h-0.5 w-16 mx-3 mb-5 transition-colors duration-300",
                     currentStepIndex > i ? "bg-primary" : "bg-muted"
                   )}
                 />
@@ -343,205 +406,118 @@ export function Clone() {
         })}
       </div>
 
-      {/* Step content */}
+      {/* Step: Databases */}
       {step === "databases" && (
         <div className="space-y-4">
           {savedOperations.length > 0 && (
             <div className="flex justify-center">
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => setLoadModalOpen(true)}
-                className="gap-2"
               >
-                <FolderOpen className="h-4 w-4" />
+                <FolderOpen className="h-4 w-4 mr-2" />
                 Load Saved Operation
-                <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-muted">
+                <span className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] bg-muted font-medium">
                   {savedOperations.length}
                 </span>
               </Button>
             </div>
           )}
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Source */}
-            <Card
-              className={cn(
-                "cursor-pointer transition-all hover:shadow-lg",
-                sourceProfile ? "border-primary" : "border-dashed"
-              )}
-              onClick={() => setSourceModalOpen(true)}
-            >
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <div className="p-2 bg-blue-500/10 rounded-lg">
-                    <Database className="h-5 w-5 text-blue-500" />
-                  </div>
-                  Source Database
-                </CardTitle>
-                <CardDescription>
-                  Select the database to clone from
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {sourceProfile ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-lg">
-                        {sourceProfile.name}
-                      </span>
-                      {sourceProfile.tagId && (
-                        <span
-                          className="px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                          style={{
-                            backgroundColor: getTagForProfile(
-                              sourceProfile.tagId
-                            )?.color,
-                          }}
-                        >
-                          {getTagForProfile(sourceProfile.tagId)?.name}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {sourceProfile.host}:{sourceProfile.port}/
-                      {sourceProfile.database}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      User: {sourceProfile.user}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="text-center py-6 text-muted-foreground">
-                    <Database className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                    <p>Click to select source</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
 
-            {/* Destination */}
-            <Card
-              className={cn(
-                "cursor-pointer transition-all hover:shadow-lg",
-                destinationProfile ? "border-primary" : "border-dashed"
-              )}
+          <div className="grid md:grid-cols-2 gap-4">
+            <DatabaseCard
+              label="Source"
+              profile={sourceProfile}
+              tagName={sourceProfile?.tagId ? getTagForProfile(sourceProfile.tagId)?.name : undefined}
+              tagColor={sourceProfile?.tagId ? getTagForProfile(sourceProfile.tagId)?.color : undefined}
+              color="blue"
+              onClick={() => setSourceModalOpen(true)}
+            />
+
+            {/* Arrow between cards */}
+            <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
+              {/* Intentionally empty - arrow is visual clutter on this layout */}
+            </div>
+
+            <DatabaseCard
+              label="Destination"
+              profile={destinationProfile}
+              tagName={destinationProfile?.tagId ? getTagForProfile(destinationProfile.tagId)?.name : undefined}
+              tagColor={destinationProfile?.tagId ? getTagForProfile(destinationProfile.tagId)?.color : undefined}
+              color="green"
               onClick={() => setDestModalOpen(true)}
-            >
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <div className="p-2 bg-green-500/10 rounded-lg">
-                    <Database className="h-5 w-5 text-green-500" />
-                  </div>
-                  Destination Database
-                </CardTitle>
-                <CardDescription>
-                  Select the database to clone to
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {destinationProfile ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-lg">
-                        {destinationProfile.name}
-                      </span>
-                      {destinationProfile.tagId && (
-                        <span
-                          className="px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                          style={{
-                            backgroundColor: getTagForProfile(
-                              destinationProfile.tagId
-                            )?.color,
-                          }}
-                        >
-                          {getTagForProfile(destinationProfile.tagId)?.name}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {destinationProfile.host}:{destinationProfile.port}/
-                      {destinationProfile.database}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      User: {destinationProfile.user}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="text-center py-6 text-muted-foreground">
-                    <Database className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                    <p>Click to select destination</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            />
           </div>
+
+          {sourceId && destinationId && sourceId === destinationId && (
+            <div className="flex items-center gap-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-sm">
+              <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
+              <p className="text-red-600">Source and destination cannot be the same database</p>
+            </div>
+          )}
         </div>
       )}
 
+      {/* Step: Options */}
       {step === "options" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Clone Options</CardTitle>
-            <CardDescription>
-              Configure how the database will be cloned
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Summary */}
-            <div className="p-4 bg-muted/50 rounded-lg border">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-500/10 rounded-lg">
-                    <Database className="h-5 w-5 text-blue-500" />
-                  </div>
-                  <div>
-                    <p className="font-semibold">{sourceProfile?.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {sourceProfile?.host}:{sourceProfile?.port}/
-                      {sourceProfile?.database}
-                    </p>
-                  </div>
-                </div>
-                <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-green-500/10 rounded-lg">
-                    <Database className="h-5 w-5 text-green-500" />
-                  </div>
-                  <div>
-                    <p className="font-semibold">{destinationProfile?.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {destinationProfile?.host}:{destinationProfile?.port}/
-                      {destinationProfile?.database}
-                    </p>
-                  </div>
-                </div>
+        <div className="rounded-xl border bg-card p-5 space-y-5">
+          {/* Summary bar */}
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="p-1.5 bg-blue-500/10 rounded-md">
+                <Database className="h-3.5 w-3.5 text-blue-500" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{sourceProfile?.name}</p>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  {sourceProfile?.host}:{sourceProfile?.port}/{sourceProfile?.database}
+                </p>
               </div>
             </div>
-
-            {/* Clone Type */}
-            <div className="space-y-3">
-              <Label>Clone Type</Label>
-              <Select
-                value={cloneType}
-                onValueChange={(v) => setCloneType(v as CloneType)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="both">
-                    Schema + Data (Full Clone)
-                  </SelectItem>
-                  <SelectItem value="structure">
-                    Schema Only (Structure)
-                  </SelectItem>
-                  <SelectItem value="data">Data Only</SelectItem>
-                </SelectContent>
-              </Select>
+            <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="p-1.5 bg-green-500/10 rounded-md">
+                <Database className="h-3.5 w-3.5 text-green-500" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{destinationProfile?.name}</p>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  {destinationProfile?.host}:{destinationProfile?.port}/{destinationProfile?.database}
+                </p>
+              </div>
             </div>
+          </div>
 
-            {/* Options */}
-            <div className="space-y-4">
-              <div className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+          {/* Clone Type */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1.5">
+              <Copy className="h-3.5 w-3.5" />
+              Clone Type
+            </Label>
+            <Select
+              value={cloneType}
+              onValueChange={(v) => setCloneType(v as CloneType)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="both">Schema + Data (Full Clone)</SelectItem>
+                <SelectItem value="structure">Schema Only (Structure)</SelectItem>
+                <SelectItem value="data">Data Only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Options */}
+          <div className="space-y-3">
+            <Label>Options</Label>
+            <div className="space-y-2">
+              <label
+                htmlFor="clean"
+                className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
+              >
                 <Checkbox
                   id="clean"
                   checked={cleanDestination}
@@ -549,16 +525,20 @@ export function Clone() {
                   className="mt-0.5"
                 />
                 <div className="flex-1">
-                  <Label htmlFor="clean" className="cursor-pointer font-medium">
-                    Clean destination before cloning
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    Drop all existing tables in the destination database
+                  <div className="flex items-center gap-2">
+                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-sm font-medium">Clean destination</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5 ml-5">
+                    Drop all existing tables before cloning
                   </p>
                 </div>
-              </div>
+              </label>
 
-              <div className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+              <label
+                htmlFor="backup"
+                className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
+              >
                 <Checkbox
                   id="backup"
                   checked={createBackup}
@@ -566,125 +546,123 @@ export function Clone() {
                   className="mt-0.5"
                 />
                 <div className="flex-1">
-                  <Label
-                    htmlFor="backup"
-                    className="cursor-pointer font-medium"
-                  >
-                    Create backup before cloning
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    Create a backup of the destination database before making
-                    changes
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-sm font-medium">Create backup</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5 ml-5">
+                    Backup destination database before making changes
                   </p>
                 </div>
-              </div>
+              </label>
             </div>
+          </div>
 
-            {/* Warning */}
-            <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 shrink-0" />
-              <div>
-                <p className="font-medium text-yellow-600">Warning</p>
-                <p className="text-sm text-muted-foreground">
-                  This operation will modify the destination database. Make sure
-                  you have selected the correct databases.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          {/* Warning */}
+          <div className="flex items-center gap-3 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+            <AlertTriangle className="h-4 w-4 text-yellow-600 shrink-0" />
+            <p className="text-xs text-yellow-600">
+              This will modify the destination database. Make sure you have selected the correct databases.
+            </p>
+          </div>
+        </div>
       )}
 
+      {/* Step: Progress */}
       {step === "progress" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Clone Progress</CardTitle>
-            <CardDescription>
-              {sourceProfile?.name} → {destinationProfile?.name}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {progress && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium capitalize flex items-center gap-2">
-                    {cloning && <Loader2 className="h-4 w-4 animate-spin" />}
+        <div className="rounded-xl border bg-card p-5 space-y-5">
+          {/* Summary bar */}
+          <div className="flex items-center justify-center gap-3 text-sm">
+            <span className="font-medium">{sourceProfile?.name}</span>
+            <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">{destinationProfile?.name}</span>
+          </div>
+
+          {progress && (
+            <div className="space-y-4">
+              {/* Progress bar */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium capitalize flex items-center gap-2">
+                    {cloning && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                     {progress.stage}
                   </span>
-                  <span className="text-sm font-mono text-muted-foreground">
+                  <span className="font-mono text-muted-foreground text-xs">
                     {progress.progress}%
                   </span>
                 </div>
                 <Progress
                   value={progress.progress}
-                  className="h-3 transition-all duration-500"
+                  className="h-2.5 transition-all duration-500"
                 />
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {progress.message}
                 </p>
-
-                {progress.isComplete && !progress.isError && (
-                  <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg flex items-center gap-3">
-                    <CheckCircle2 className="h-6 w-6 text-green-600" />
-                    <div>
-                      <p className="text-green-600 font-semibold">
-                        Clone completed successfully!
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Database has been cloned to destination
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {progress.isError && (
-                  <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-3">
-                    <AlertTriangle className="h-6 w-6 text-red-600" />
-                    <div>
-                      <p className="text-red-600 font-semibold">Clone failed</p>
-                      <p className="text-sm text-muted-foreground">
-                        {progress.message}
-                      </p>
-                    </div>
-                  </div>
-                )}
               </div>
-            )}
 
-            {/* Logs */}
-            <div className="space-y-2">
-              <Label>Logs</Label>
-              <div className="h-64 w-full rounded-lg border bg-muted/30 overflow-hidden">
-                <div className="h-full overflow-auto p-4 font-mono text-sm">
-                  {logs.length === 0 ? (
-                    <p className="text-muted-foreground">Waiting for logs...</p>
-                  ) : (
-                    <>
-                      {logs.map((log, i) => (
-                        <div
-                          key={i}
-                          className={cn(
-                            "py-0.5 leading-relaxed clone-log-entry",
-                            log.includes("[ERROR]") && "text-red-500",
-                            log.includes("[WARNING]") && "text-yellow-500",
-                            log.includes("[SUCCESS]") && "text-green-500",
-                            log.includes("[INFO]") && "text-muted-foreground"
-                          )}
-                        >
-                          {log}
-                        </div>
-                      ))}
-                      <div ref={logsEndRef} />
-                    </>
-                  )}
+              {/* Success */}
+              {progress.isComplete && !progress.isError && (
+                <div className="flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                  <div>
+                    <p className="text-sm text-green-600 font-semibold">
+                      Clone completed successfully!
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Database has been cloned to destination
+                    </p>
+                  </div>
                 </div>
+              )}
+
+              {/* Error */}
+              {progress.isError && (
+                <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+                  <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
+                  <div>
+                    <p className="text-sm text-red-600 font-semibold">Clone failed</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {progress.message}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Logs */}
+          <div className="space-y-2">
+            <Label className="text-xs">Logs</Label>
+            <div className="h-56 w-full rounded-lg border bg-muted/30 overflow-hidden">
+              <div className="h-full overflow-auto p-3 font-mono text-xs leading-relaxed">
+                {logs.length === 0 ? (
+                  <p className="text-muted-foreground">Waiting for logs...</p>
+                ) : (
+                  <>
+                    {logs.map((log, i) => (
+                      <div
+                        key={i}
+                        className={cn(
+                          "py-0.5 clone-log-entry",
+                          log.includes("[ERROR]") && "text-red-500",
+                          log.includes("[WARNING]") && "text-yellow-500",
+                          log.includes("[SUCCESS]") && "text-green-500",
+                          log.includes("[INFO]") && "text-muted-foreground"
+                        )}
+                      >
+                        {log}
+                      </div>
+                    ))}
+                    <div ref={logsEndRef} />
+                  </>
+                )}
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
-      {/* Navigation buttons */}
+      {/* Navigation */}
       <div className="flex justify-between">
         {step === "progress" ? (
           <>

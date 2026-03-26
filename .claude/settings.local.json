@@ -20,7 +20,13 @@
       "Bash(git commit:*)",
       "Bash(find:*)",
       "Bash(cat:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(git -C \"C:\\\\Users\\\\antho\\\\app-clone-db\" add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml)",
+      "Bash(git -C \"C:\\\\Users\\\\antho\\\\app-clone-db\" commit -m \"chore: bump version to 0.8.0\")",
+      "Bash(git -C \"C:\\\\Users\\\\antho\\\\app-clone-db\" push origin main)",
+      "Bash(git -C \"C:\\\\Users\\\\antho\\\\app-clone-db\" tag v0.8.0)",
+      "Bash(git -C \"C:\\\\Users\\\\antho\\\\app-clone-db\" push origin v0.8.0)",
+      "Bash(gh:*)"
     ]
   }
 }

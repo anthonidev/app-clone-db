@@ -50,18 +50,15 @@ export function Home() {
 
       {/* Tag Filter */}
       {tags.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Filter className="h-4 w-4" />
-            <span>Filter:</span>
-          </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Filter className="h-3.5 w-3.5 text-muted-foreground mr-1" />
           <button
             onClick={() => setSelectedTagId(null)}
             className={cn(
-              "px-3 py-1.5 rounded-full text-sm font-medium transition-colors",
+              "px-2 py-0.5 rounded-full text-xs font-medium transition-colors",
               selectedTagId === null
                 ? "bg-primary text-primary-foreground"
-                : "bg-muted hover:bg-muted/80"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
             )}
           >
             All
@@ -71,10 +68,10 @@ export function Home() {
               key={tag.id}
               onClick={() => setSelectedTagId(tag.id)}
               className={cn(
-                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all",
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-all",
                 selectedTagId === tag.id
-                  ? "ring-2 ring-offset-2 ring-offset-background"
-                  : "opacity-70 hover:opacity-100"
+                  ? "ring-1.5 ring-offset-1 ring-offset-background shadow-sm"
+                  : "opacity-60 hover:opacity-100"
               )}
               style={{
                 backgroundColor: tag.color,
@@ -84,7 +81,7 @@ export function Home() {
             >
               {tag.name}
               {selectedTagId === tag.id && (
-                <X className="h-3 w-3 ml-1" onClick={(e) => {
+                <X className="h-2.5 w-2.5" onClick={(e) => {
                   e.stopPropagation()
                   setSelectedTagId(null)
                 }} />

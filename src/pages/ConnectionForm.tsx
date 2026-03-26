@@ -1,18 +1,25 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Loader2, CheckCircle, XCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  Loader2,
+  CheckCircle,
+  XCircle,
+  Database,
+  Server,
+  User,
+  Lock,
+  Link2,
+  ShieldCheck,
+  Tag as TagIcon,
+  Plug,
+  Save,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   createProfile,
   updateProfile,
@@ -26,13 +33,35 @@ import { TagModal } from "@/components/TagModal";
 import { EditTagModal } from "@/components/EditTagModal";
 import type { ConnectionProfile, DatabaseInfo, Tag } from "@/types";
 
+function SectionHeader({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: React.ElementType;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 pb-4 border-b">
+      <div className="p-2 bg-primary/10 rounded-lg">
+        <Icon className="h-4 w-4 text-primary" />
+      </div>
+      <div>
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+    </div>
+  );
+}
+
 export function ConnectionForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditing = Boolean(id);
   const { tags, refetch: refetchTags } = useTags();
 
-  const [inputMode, setInputMode] = useState<"url" | "manual">("manual");
+  const [inputMode, setInputMode] = useState<"url" | "manual">("url");
   const [connectionUrl, setConnectionUrl] = useState("");
 
   const [name, setName] = useState("");
@@ -75,7 +104,7 @@ export function ConnectionForm() {
 
   const handleTagCreated = (tag: Tag) => {
     refetchTags();
-    setTagId(tag.id); // Auto-select the newly created tag
+    setTagId(tag.id);
   };
 
   const handleEditTag = (tag: Tag) => {
@@ -166,16 +195,17 @@ export function ConnectionForm() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-2xl mx-auto space-y-6">
+      {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold">
+          <h1 className="text-xl font-bold">
             {isEditing ? "Edit Connection" : "New Connection"}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {isEditing
               ? "Update your database connection settings"
               : "Create a new database connection profile"}
@@ -183,15 +213,16 @@ export function ConnectionForm() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Connection Details</CardTitle>
-            <CardDescription>
-              Enter the connection details for your PostgreSQL database
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Profile Section */}
+        <div className="rounded-xl border bg-card p-5 space-y-5">
+          <SectionHeader
+            icon={Database}
+            title="Profile"
+            description="Name and organize your connection"
+          />
+
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="name">Connection Name</Label>
               <Input
@@ -203,9 +234,11 @@ export function ConnectionForm() {
               />
             </div>
 
-            {/* Tag Selector */}
             <div className="space-y-2">
-              <Label>Tag (Optional)</Label>
+              <Label className="flex items-center gap-1.5">
+                <TagIcon className="h-3.5 w-3.5" />
+                Tag
+              </Label>
               <TagSelect
                 tags={tags}
                 value={tagId}
@@ -213,155 +246,192 @@ export function ConnectionForm() {
                 onCreateNew={() => setTagModalOpen(true)}
                 onEdit={handleEditTag}
               />
-              <p className="text-xs text-muted-foreground">
-                Organize your connections with tags for easy filtering
-              </p>
             </div>
+          </div>
+        </div>
 
-            <Tabs
-              value={inputMode}
-              onValueChange={(v) => setInputMode(v as "url" | "manual")}
-            >
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="manual">Manual</TabsTrigger>
-                <TabsTrigger value="url">Connection URL</TabsTrigger>
-              </TabsList>
+        {/* Connection Section */}
+        <div className="rounded-xl border bg-card p-5 space-y-5">
+          <SectionHeader
+            icon={Server}
+            title="Connection"
+            description="PostgreSQL server details"
+          />
 
-              <TabsContent value="url" className="space-y-4 mt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="url">Connection URL</Label>
-                  <Input
-                    id="url"
-                    placeholder="postgresql://user:password@host:5432/database"
-                    value={connectionUrl}
-                    onChange={(e) => handleUrlChange(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Paste your full PostgreSQL connection URL
-                  </p>
-                </div>
-              </TabsContent>
+          <Tabs
+            value={inputMode}
+            onValueChange={(v) => setInputMode(v as "url" | "manual")}
+          >
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="manual">Manual</TabsTrigger>
+              <TabsTrigger value="url">
+                <Link2 className="h-3.5 w-3.5 mr-1.5" />
+                Connection URL
+              </TabsTrigger>
+            </TabsList>
 
-              <TabsContent value="manual" className="space-y-4 mt-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="host">Host</Label>
+            <TabsContent value="url" className="mt-4">
+              <div className="space-y-2">
+                <Label htmlFor="url">Connection URL</Label>
+                <Input
+                  id="url"
+                  placeholder="postgresql://user:password@host:5432/database"
+                  value={connectionUrl}
+                  onChange={(e) => handleUrlChange(e.target.value)}
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Paste your full PostgreSQL connection URL
+                </p>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="manual" className="mt-4 space-y-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="host">Host</Label>
+                  <div className="relative">
+                    <Server className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="host"
                       placeholder="localhost"
                       value={host}
                       onChange={(e) => setHost(e.target.value)}
                       required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="port">Port</Label>
-                    <Input
-                      id="port"
-                      type="number"
-                      placeholder="5432"
-                      value={port}
-                      onChange={(e) =>
-                        setPort(parseInt(e.target.value) || 5432)
-                      }
-                      required
+                      className="pl-9"
                     />
                   </div>
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="database">Database</Label>
+                  <Label htmlFor="port">Port</Label>
+                  <Input
+                    id="port"
+                    type="number"
+                    placeholder="5432"
+                    value={port}
+                    onChange={(e) =>
+                      setPort(parseInt(e.target.value) || 5432)
+                    }
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="database">Database</Label>
+                <div className="relative">
+                  <Database className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="database"
                     placeholder="mydb"
                     value={database}
                     onChange={(e) => setDatabase(e.target.value)}
                     required
+                    className="pl-9"
                   />
                 </div>
+              </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="user">User</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="user">User</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="user"
                       placeholder="postgres"
                       value={user}
                       onChange={(e) => setUser(e.target.value)}
                       required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="********"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-9"
                     />
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                </div>
+              </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div className="flex items-center gap-3">
+                  <ShieldCheck className="h-5 w-5 text-muted-foreground" />
+                  <div>
                     <Label htmlFor="ssl">SSL Connection</Label>
                     <p className="text-xs text-muted-foreground">
                       Enable SSL/TLS encryption
                     </p>
                   </div>
-                  <Switch id="ssl" checked={ssl} onCheckedChange={setSsl} />
                 </div>
-              </TabsContent>
-            </Tabs>
-
-            {testResult && (
-              <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg flex items-start gap-3">
-                <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                <div>
-                  <p className="font-medium text-green-600">
-                    Connection successful!
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Found {testResult.tables.length} tables. PostgreSQL{" "}
-                    {testResult.version.split(" ")[1]}
-                  </p>
-                </div>
+                <Switch id="ssl" checked={ssl} onCheckedChange={setSsl} />
               </div>
-            )}
+            </TabsContent>
+          </Tabs>
+        </div>
 
-            {testError && (
-              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-3">
-                <XCircle className="h-5 w-5 text-red-600 mt-0.5" />
-                <div>
-                  <p className="font-medium text-red-600">Connection failed</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {testError}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-3 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleTest}
-                disabled={testing || !host || !database || !user}
-              >
-                {testing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Test Connection
-              </Button>
-              <Button
-                type="submit"
-                disabled={saving || !name || !host || !database || !user}
-              >
-                {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {isEditing ? "Update" : "Save"} Connection
-              </Button>
+        {/* Test Result */}
+        {testResult && (
+          <div className="flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
+            <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
+            <div>
+              <p className="font-medium text-green-600 text-sm">Connected</p>
+              <p className="text-sm text-muted-foreground">
+                {testResult.tables.length} tables &middot; PostgreSQL{" "}
+                {testResult.version.split(" ")[1]}
+              </p>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        )}
+
+        {testError && (
+          <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+            <XCircle className="h-5 w-5 text-red-600 shrink-0" />
+            <div>
+              <p className="font-medium text-red-600 text-sm">Connection failed</p>
+              <p className="text-sm text-muted-foreground line-clamp-2">
+                {testError}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-3 justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleTest}
+            disabled={testing || !host || !database || !user}
+          >
+            {testing ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Plug className="h-4 w-4 mr-2" />
+            )}
+            Test Connection
+          </Button>
+          <Button
+            type="submit"
+            disabled={saving || !name || !host || !database || !user}
+          >
+            {saving ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
+            {isEditing ? "Update" : "Save"} Connection
+          </Button>
+        </div>
       </form>
 
       <TagModal

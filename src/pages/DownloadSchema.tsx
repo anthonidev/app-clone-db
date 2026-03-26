@@ -14,17 +14,11 @@ import {
   ChevronUp,
   Table,
   Layers,
+  Server,
 } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -70,7 +64,6 @@ export function DownloadSchema() {
   const [schemaContent, setSchemaContent] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  // Advanced options state
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [options, setOptions] = useState(DEFAULT_OPTIONS);
   const [dbStructure, setDbStructure] = useState<DatabaseStructure | null>(null);
@@ -78,14 +71,12 @@ export function DownloadSchema() {
 
   const selectedProfile = profiles.find((p) => p.id === selectedProfileId);
 
-  // Auto-scroll logs
   useEffect(() => {
     if (logsEndRef.current) {
       logsEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [logs]);
 
-  // Show notification when download completes
   useEffect(() => {
     if (progress?.isComplete && !notifiedRef.current) {
       notifiedRef.current = true;
@@ -98,13 +89,11 @@ export function DownloadSchema() {
         );
       }
     }
-    // Reset notification flag when progress is reset
     if (!progress) {
       notifiedRef.current = false;
     }
   }, [progress, selectedProfile?.name, notifySuccess, notifyError]);
 
-  // Load database structure when profile is selected and advanced options are shown
   useEffect(() => {
     if (selectedProfileId && showAdvanced && !dbStructure) {
       loadDatabaseStructure();
@@ -155,14 +144,8 @@ export function DownloadSchema() {
       const filePath = await save({
         defaultPath: defaultFileName,
         filters: [
-          {
-            name: "SQL Files",
-            extensions: ["sql"],
-          },
-          {
-            name: "All Files",
-            extensions: ["*"],
-          },
+          { name: "SQL Files", extensions: ["sql"] },
+          { name: "All Files", extensions: ["*"] },
         ],
       });
 
@@ -239,7 +222,6 @@ export function DownloadSchema() {
     return tags.find((t) => t.id === tagId);
   };
 
-  // Group tables by schema
   const tablesBySchema = dbStructure?.tables.reduce<Record<string, TableInfo[]>>(
     (acc, table) => {
       if (!acc[table.schema]) {
@@ -263,109 +245,107 @@ export function DownloadSchema() {
   const hasError = progress?.isError;
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold">Download Schema</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl font-bold">Download Schema</h1>
+          <p className="text-sm text-muted-foreground">
             Export database schema as SQL file
           </p>
         </div>
       </div>
 
       {/* Database Selection */}
-      <Card
+      <button
+        type="button"
         className={cn(
-          "cursor-pointer transition-all hover:shadow-lg",
-          selectedProfile ? "border-primary" : "border-dashed",
+          "w-full text-left rounded-xl border-2 p-5 transition-all hover:shadow-md",
+          selectedProfile
+            ? "border-blue-500/30 bg-card"
+            : "border-dashed border-muted-foreground/25 hover:border-muted-foreground/40",
           (downloading || schemaContent) && "pointer-events-none opacity-60"
         )}
         onClick={() =>
           !downloading && !schemaContent && setSelectorModalOpen(true)
         }
       >
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <div className="p-2 bg-blue-500/10 rounded-lg">
-              <Database className="h-5 w-5 text-blue-500" />
-            </div>
-            Select Database
-          </CardTitle>
-          <CardDescription>
-            Choose the database to download schema from
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {selectedProfile ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-lg">
-                  {selectedProfile.name}
-                </span>
-                {selectedProfile.tagId && (
-                  <span
-                    className="px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                    style={{
-                      backgroundColor: getTagForProfile(selectedProfile.tagId)
-                        ?.color,
-                    }}
-                  >
-                    {getTagForProfile(selectedProfile.tagId)?.name}
-                  </span>
-                )}
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {selectedProfile.host}:{selectedProfile.port}/
-                {selectedProfile.database}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                User: {selectedProfile.user}
-              </p>
-            </div>
-          ) : (
-            <div className="text-center py-6 text-muted-foreground">
-              <Database className="h-10 w-10 mx-auto mb-2 opacity-50" />
-              <p>Click to select database</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="p-1.5 bg-blue-500/10 rounded-lg">
+            <Database className="h-4 w-4 text-blue-500" />
+          </div>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Database
+          </span>
+        </div>
 
-      {/* Advanced Options Toggle */}
+        {selectedProfile ? (
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-base">
+                {selectedProfile.name}
+              </span>
+              {selectedProfile.tagId && (
+                <span
+                  className="px-1.5 py-0.5 rounded text-[10px] font-medium text-white"
+                  style={{
+                    backgroundColor: getTagForProfile(selectedProfile.tagId)?.color,
+                  }}
+                >
+                  {getTagForProfile(selectedProfile.tagId)?.name}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Server className="h-3 w-3" />
+              <span>
+                {selectedProfile.host}:{selectedProfile.port}/{selectedProfile.database}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-4 text-muted-foreground">
+            <Database className="h-8 w-8 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">Click to select database</p>
+          </div>
+        )}
+      </button>
+
+      {/* Advanced Options */}
       {selectedProfile && !downloading && !schemaContent && (
-        <Card>
-          <CardHeader
-            className="cursor-pointer"
+        <div className="rounded-xl border bg-card overflow-hidden">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between p-5 hover:bg-muted/30 transition-colors"
             onClick={() => setShowAdvanced(!showAdvanced)}
           >
-            <CardTitle className="text-lg flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Settings2 className="h-5 w-5 text-muted-foreground" />
-                Advanced Options
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <Settings2 className="h-4 w-4 text-primary" />
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-normal text-muted-foreground">
-                  {showAdvanced ? "Hide" : "Show"}
-                </span>
-                {showAdvanced ? (
-                  <ChevronUp className="h-5 w-5" />
-                ) : (
-                  <ChevronDown className="h-5 w-5" />
-                )}
+              <div className="text-left">
+                <h3 className="text-sm font-semibold">Advanced Options</h3>
+                <p className="text-xs text-muted-foreground">
+                  Filter schemas, tables and export settings
+                </p>
               </div>
-            </CardTitle>
-          </CardHeader>
+            </div>
+            {showAdvanced ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
 
           {showAdvanced && (
-            <CardContent className="space-y-6">
+            <div className="px-5 pb-5 space-y-5 border-t pt-5">
               {loadingStructure ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  <span className="ml-2 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-sm text-muted-foreground">
                     Loading database structure...
                   </span>
                 </div>
@@ -373,18 +353,19 @@ export function DownloadSchema() {
                 <>
                   {/* Schema Selection */}
                   {dbStructure && dbStructure.schemas.length > 0 && (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label className="flex items-center gap-2">
-                          <Layers className="h-4 w-4" />
+                        <Label className="flex items-center gap-1.5 text-sm">
+                          <Layers className="h-3.5 w-3.5" />
                           Schemas
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs text-muted-foreground font-normal">
                             (empty = all)
                           </span>
                         </Label>
                         <Button
                           variant="ghost"
                           size="sm"
+                          className="h-7 text-xs"
                           onClick={toggleAllSchemas}
                         >
                           {options.schemas.length === dbStructure.schemas.length
@@ -392,28 +373,26 @@ export function DownloadSchema() {
                             : "Select All"}
                         </Button>
                       </div>
-                      <ScrollArea className="h-32 rounded-md border p-3">
+                      <ScrollArea className="h-32 rounded-lg border p-3">
                         <div className="space-y-2">
                           {dbStructure.schemas.map((schema) => (
-                            <div
+                            <label
                               key={schema.name}
-                              className="flex items-center space-x-2"
+                              htmlFor={`schema-${schema.name}`}
+                              className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded p-1 -m-1 transition-colors"
                             >
                               <Checkbox
                                 id={`schema-${schema.name}`}
                                 checked={options.schemas.includes(schema.name)}
                                 onCheckedChange={() => toggleSchema(schema.name)}
                               />
-                              <label
-                                htmlFor={`schema-${schema.name}`}
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
-                              >
+                              <span className="text-sm">
                                 {schema.name}
-                                <span className="text-xs text-muted-foreground ml-2">
+                                <span className="text-xs text-muted-foreground ml-1.5">
                                   ({schema.tableCount} tables)
                                 </span>
-                              </label>
-                            </div>
+                              </span>
+                            </label>
                           ))}
                         </div>
                       </ScrollArea>
@@ -422,18 +401,19 @@ export function DownloadSchema() {
 
                   {/* Table Selection */}
                   {dbStructure && dbStructure.tables.length > 0 && (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label className="flex items-center gap-2">
-                          <Table className="h-4 w-4" />
+                        <Label className="flex items-center gap-1.5 text-sm">
+                          <Table className="h-3.5 w-3.5" />
                           Tables
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs text-muted-foreground font-normal">
                             (empty = all)
                           </span>
                         </Label>
                         <Button
                           variant="ghost"
                           size="sm"
+                          className="h-7 text-xs"
                           onClick={toggleAllTables}
                         >
                           {options.tables.length === dbStructure.tables.length
@@ -441,43 +421,36 @@ export function DownloadSchema() {
                             : "Select All"}
                         </Button>
                       </div>
-                      <ScrollArea className="h-48 rounded-md border p-3">
+                      <ScrollArea className="h-48 rounded-lg border p-3">
                         <div className="space-y-4">
                           {tablesBySchema &&
                             Object.entries(tablesBySchema).map(
                               ([schemaName, tables]) => (
                                 <div key={schemaName}>
-                                  <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase">
+                                  <p className="text-[10px] font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">
                                     {schemaName}
                                   </p>
-                                  <div className="space-y-2 ml-2">
+                                  <div className="space-y-1 ml-1">
                                     {tables.map((table) => {
                                       const fullName = `${table.schema}.${table.name}`;
                                       return (
-                                        <div
+                                        <label
                                           key={fullName}
-                                          className="flex items-center space-x-2"
+                                          htmlFor={`table-${fullName}`}
+                                          className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded p-1 -m-1 transition-colors"
                                         >
                                           <Checkbox
                                             id={`table-${fullName}`}
-                                            checked={options.tables.includes(
-                                              fullName
-                                            )}
-                                            onCheckedChange={() =>
-                                              toggleTable(fullName)
-                                            }
+                                            checked={options.tables.includes(fullName)}
+                                            onCheckedChange={() => toggleTable(fullName)}
                                           />
-                                          <label
-                                            htmlFor={`table-${fullName}`}
-                                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
-                                          >
+                                          <span className="text-sm">
                                             {table.name}
-                                            <span className="text-xs text-muted-foreground ml-2">
-                                              ({table.rowCount} rows,{" "}
-                                              {formatBytes(table.size)})
+                                            <span className="text-xs text-muted-foreground ml-1.5">
+                                              ({table.rowCount} rows, {formatBytes(table.size)})
                                             </span>
-                                          </label>
-                                        </div>
+                                          </span>
+                                        </label>
                                       );
                                     })}
                                   </div>
@@ -490,9 +463,9 @@ export function DownloadSchema() {
                   )}
 
                   {/* Include Options */}
-                  <div className="space-y-3">
-                    <Label>Include in Export</Label>
-                    <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm">Include in Export</Label>
+                    <div className="grid grid-cols-2 gap-2">
                       {[
                         { key: "includeComments", label: "Comments" },
                         { key: "includeIndexes", label: "Indexes" },
@@ -505,11 +478,11 @@ export function DownloadSchema() {
                       ].map(({ key, label }) => (
                         <div
                           key={key}
-                          className="flex items-center justify-between p-3 rounded-lg border"
+                          className="flex items-center justify-between p-2.5 rounded-lg border"
                         >
                           <Label
                             htmlFor={key}
-                            className="text-sm font-medium cursor-pointer"
+                            className="text-xs font-medium cursor-pointer"
                           >
                             {label}
                           </Label>
@@ -528,119 +501,122 @@ export function DownloadSchema() {
                   </div>
                 </>
               )}
-            </CardContent>
+            </div>
           )}
-        </Card>
+        </div>
       )}
 
       {/* Progress Section */}
       {(downloading || progress) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileCode className="h-5 w-5" />
-              Download Progress
-            </CardTitle>
-            <CardDescription>
-              Extracting schema from {selectedProfile?.name}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {progress && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium capitalize flex items-center gap-2">
+        <div className="rounded-xl border bg-card p-5 space-y-5">
+          <div className="flex items-center gap-3 pb-4 border-b">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <FileCode className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold">Download Progress</h3>
+              <p className="text-xs text-muted-foreground">
+                Extracting schema from {selectedProfile?.name}
+              </p>
+            </div>
+          </div>
+
+          {progress && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium capitalize flex items-center gap-2">
                     {downloading && (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     )}
                     {progress.stage}
                   </span>
-                  <span className="text-sm font-mono text-muted-foreground">
+                  <span className="font-mono text-muted-foreground text-xs">
                     {progress.progress}%
                   </span>
                 </div>
                 <Progress
                   value={progress.progress}
-                  className="h-3 transition-all duration-500"
+                  className="h-2.5 transition-all duration-500"
                 />
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {progress.message}
                 </p>
-
-                {isComplete && (
-                  <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg flex items-center gap-3">
-                    <CheckCircle2 className="h-6 w-6 text-green-600" />
-                    <div className="flex-1">
-                      <p className="text-green-600 font-semibold">
-                        Schema extracted successfully!
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {schemaContent
-                          ? `${(schemaContent.length / 1024).toFixed(2)} KB ready to save`
-                          : "Ready to save"}
-                      </p>
-                    </div>
-                    {!saved ? (
-                      <Button onClick={handleSaveFile} className="gap-2">
-                        <Download className="h-4 w-4" />
-                        Save File
-                      </Button>
-                    ) : (
-                      <div className="flex items-center gap-2 text-green-600">
-                        <CheckCircle2 className="h-5 w-5" />
-                        <span className="font-medium">Saved!</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {hasError && (
-                  <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-3">
-                    <AlertTriangle className="h-6 w-6 text-red-600" />
-                    <div>
-                      <p className="text-red-600 font-semibold">
-                        Download failed
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {progress.message}
-                      </p>
-                    </div>
-                  </div>
-                )}
               </div>
-            )}
 
-            {/* Logs */}
-            <div className="space-y-2">
-              <Label>Logs</Label>
-              <div className="h-48 w-full rounded-lg border bg-muted/30 overflow-hidden">
-                <div className="h-full overflow-auto p-4 font-mono text-sm">
-                  {logs.length === 0 ? (
-                    <p className="text-muted-foreground">Waiting for logs...</p>
+              {isComplete && (
+                <div className="flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-green-600 font-semibold">
+                      Schema extracted successfully!
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {schemaContent
+                        ? `${(schemaContent.length / 1024).toFixed(2)} KB ready to save`
+                        : "Ready to save"}
+                    </p>
+                  </div>
+                  {!saved ? (
+                    <Button size="sm" onClick={handleSaveFile} className="shrink-0">
+                      <Download className="h-4 w-4 mr-1.5" />
+                      Save File
+                    </Button>
                   ) : (
-                    <>
-                      {logs.map((log, i) => (
-                        <div
-                          key={i}
-                          className={cn(
-                            "py-0.5 leading-relaxed",
-                            log.includes("[ERROR]") && "text-red-500",
-                            log.includes("[WARNING]") && "text-yellow-500",
-                            log.includes("[SUCCESS]") && "text-green-500",
-                            log.includes("[INFO]") && "text-muted-foreground"
-                          )}
-                        >
-                          {log}
-                        </div>
-                      ))}
-                      <div ref={logsEndRef} />
-                    </>
+                    <div className="flex items-center gap-1.5 text-green-600 shrink-0">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span className="text-sm font-medium">Saved!</span>
+                    </div>
                   )}
                 </div>
+              )}
+
+              {hasError && (
+                <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+                  <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
+                  <div>
+                    <p className="text-sm text-red-600 font-semibold">
+                      Download failed
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {progress.message}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Logs */}
+          <div className="space-y-2">
+            <Label className="text-xs">Logs</Label>
+            <div className="h-48 w-full rounded-lg border bg-muted/30 overflow-hidden">
+              <div className="h-full overflow-auto p-3 font-mono text-xs leading-relaxed">
+                {logs.length === 0 ? (
+                  <p className="text-muted-foreground">Waiting for logs...</p>
+                ) : (
+                  <>
+                    {logs.map((log, i) => (
+                      <div
+                        key={i}
+                        className={cn(
+                          "py-0.5",
+                          log.includes("[ERROR]") && "text-red-500",
+                          log.includes("[WARNING]") && "text-yellow-500",
+                          log.includes("[SUCCESS]") && "text-green-500",
+                          log.includes("[INFO]") && "text-muted-foreground"
+                        )}
+                      >
+                        {log}
+                      </div>
+                    ))}
+                    <div ref={logsEndRef} />
+                  </>
+                )}
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* Action Buttons */}
