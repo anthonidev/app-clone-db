@@ -19,6 +19,26 @@ fn get_parallel_jobs() -> usize {
         .max(2) // At least 2 for meaningful parallelism
 }
 
+/// Check if two hosts are on the same machine (both local)
+fn is_local_transfer(source_host: &str, dest_host: &str) -> bool {
+    let local_hosts = ["localhost", "127.0.0.1", "::1", "0.0.0.0"];
+    let src_local = local_hosts.iter().any(|h| source_host == *h);
+    let dst_local = local_hosts.iter().any(|h| dest_host == *h);
+    src_local && dst_local
+}
+
+/// Format seconds into human-readable "Xm Ys" or "Xs"
+fn format_duration_human(secs: f64) -> String {
+    let total_secs = secs as u64;
+    let minutes = total_secs / 60;
+    let seconds = total_secs % 60;
+    if minutes > 0 {
+        format!("{}m {}s", minutes, seconds)
+    } else {
+        format!("{:.1}s", secs)
+    }
+}
+
 fn emit_progress(app: &AppHandle, progress: CloneProgress) {
     let _ = app.emit("clone-progress", &progress);
 }
@@ -97,6 +117,8 @@ async fn execute_clone(
     options: &CloneOptions,
     history: &Arc<Mutex<CloneHistoryEntry>>,
 ) -> Result<(), String> {
+    let total_start = Instant::now();
+
     let add_log = |msg: &str| {
         emit_log(app, msg);
         if let Ok(mut entry) = history.lock() {
@@ -104,10 +126,14 @@ async fn execute_clone(
         }
     };
 
+    // Determine if this is a local or remote transfer for compression strategy
+    let is_local = is_local_transfer(&source.host, &destination.host);
+
     // Stage 1: Preparing
     emit_progress(app, CloneProgress::new("preparing", 5, "Preparing clone operation..."));
     add_log(&format!("[INFO] Starting clone from '{}' to '{}'", source.name, destination.name));
     add_log(&format!("[INFO] Clone type: {:?}", options.clone_type));
+    add_log(&format!("[INFO] Transfer mode: {}", if is_local { "local (no compression)" } else { "remote (with compression)" }));
 
     // Stage 2: Backup (if enabled)
     if options.create_backup {
@@ -227,7 +253,7 @@ async fn execute_clone(
     // Stage 4: Dump source
     let parallel_jobs = get_parallel_jobs();
     let dump_start = Instant::now();
-    emit_progress(app, CloneProgress::new("dumping", 40, "Dumping source database..."));
+    emit_progress(app, CloneProgress::new("dumping", 35, "Dumping source database..."));
 
     let source_conn_str = format!(
         "host={} port={} dbname={} user={}",
@@ -239,30 +265,37 @@ async fn execute_clone(
         destination.host, destination.port, destination.database, destination.user
     );
 
-    // For data-only mode, we use plain SQL format since pg_restore with --data-only
-    // requires tables to exist. For structure and both, we use custom format for parallel restore.
-    let use_custom_format = !matches!(options.clone_type, CloneType::Data);
+    // Directory format (-Fd) enables parallel dump AND parallel restore.
+    // Plain format is only needed for data-only mode (pg_restore --data-only needs existing tables).
+    let use_directory_format = !matches!(options.clone_type, CloneType::Data);
 
-    if use_custom_format {
-        add_log("[INFO] Using custom format with parallel restore...");
-        add_log(&format!("[INFO] Will use {} parallel jobs for restore", parallel_jobs));
+    if use_directory_format {
+        add_log(&format!("[INFO] Using directory format with {} parallel jobs for dump & restore", parallel_jobs));
     } else {
         add_log("[INFO] Using plain SQL format for data-only clone...");
     }
 
     let mut dump_args = vec!["-d".to_string(), source_conn_str];
 
-    if use_custom_format {
-        // Custom format for parallel restore
-        dump_args.push("-Fc".to_string());
-        dump_args.push("-Z".to_string());
-        dump_args.push("1".to_string()); // Light compression (faster for remote)
+    if use_directory_format {
+        // Directory format: enables parallel dump (-j) and parallel restore (-j)
+        dump_args.push("-Fd".to_string());
+        dump_args.push("-j".to_string());
+        dump_args.push(parallel_jobs.to_string());
+        // Compression strategy: skip for local (saves CPU), use for remote (saves bandwidth)
+        if is_local {
+            dump_args.push("-Z".to_string());
+            dump_args.push("0".to_string());
+        } else {
+            // Fast LZ4 compression: much less CPU than gzip, good compression ratio
+            // Falls back to gzip level 3 if pg_dump doesn't support lz4 (< v16)
+            dump_args.push("-Z".to_string());
+            dump_args.push("lz4:1".to_string());
+        }
     } else {
-        // Plain format for data-only (will be piped directly)
-        dump_args.push("-Fp".to_string()); // Plain format
+        dump_args.push("-Fp".to_string());
     }
 
-    // Add clone type options
     match options.clone_type {
         CloneType::Structure => {
             dump_args.push("--schema-only".to_string());
@@ -270,7 +303,7 @@ async fn execute_clone(
         }
         CloneType::Data => {
             dump_args.push("--data-only".to_string());
-            dump_args.push("--disable-triggers".to_string()); // Faster data restore
+            dump_args.push("--disable-triggers".to_string());
             add_log("[INFO] Dumping data only");
         }
         CloneType::Both => {
@@ -278,20 +311,25 @@ async fn execute_clone(
         }
     }
 
-    // Add excluded tables
     for table in &options.exclude_tables {
         dump_args.push("--exclude-table".to_string());
         dump_args.push(table.clone());
         add_log(&format!("[INFO] Excluding table: {}", table));
     }
 
-    // Create temp file for dump
-    let dump_ext = if use_custom_format { "dump" } else { "sql" };
-    let dump_path = std::env::temp_dir().join(format!("pg_clone_{}.{}", uuid::Uuid::new_v4(), dump_ext));
+    // For directory format, dump_path is a directory; for plain, it's a file
+    let dump_path = if use_directory_format {
+        let dir = std::env::temp_dir().join(format!("pg_clone_{}", uuid::Uuid::new_v4()));
+        // pg_dump -Fd creates the directory itself, it must NOT exist beforehand
+        dir
+    } else {
+        std::env::temp_dir().join(format!("pg_clone_{}.sql", uuid::Uuid::new_v4()))
+    };
+
     dump_args.push("-f".to_string());
     dump_args.push(dump_path.to_str().unwrap().to_string());
 
-    let dump_output = create_command(pg_dump)
+    let mut dump_output = create_command(pg_dump)
         .env("PGPASSWORD", &source.password)
         .env("PGSSLMODE", if source.ssl { "require" } else { "prefer" })
         .args(&dump_args)
@@ -299,39 +337,89 @@ async fn execute_clone(
         .output()
         .map_err(|e| format!("Failed to dump source: {}", e))?;
 
+    // If lz4 compression failed (pg_dump < 16), fallback to gzip
+    if !dump_output.status.success() && !is_local && use_directory_format {
+        let stderr = String::from_utf8_lossy(&dump_output.stderr);
+        if stderr.to_lowercase().contains("lz4") || stderr.to_lowercase().contains("compression") {
+            add_log("[WARNING] LZ4 compression not supported, falling back to gzip...");
+            let _ = cleanup_dump_path(&dump_path, true);
+
+            // Replace lz4:1 with gzip level 3 in args
+            if let Some(pos) = dump_args.iter().position(|a| a == "lz4:1") {
+                dump_args[pos] = "3".to_string();
+            }
+
+            dump_output = create_command(pg_dump)
+                .env("PGPASSWORD", &source.password)
+                .env("PGSSLMODE", if source.ssl { "require" } else { "prefer" })
+                .args(&dump_args)
+                .stderr(Stdio::piped())
+                .output()
+                .map_err(|e| format!("Failed to dump source: {}", e))?;
+        }
+    }
+
     if !dump_output.status.success() {
         let stderr = String::from_utf8_lossy(&dump_output.stderr);
         add_log(&format!("[ERROR] Dump failed: {}", stderr));
+        let _ = cleanup_dump_path(&dump_path, use_directory_format);
         return Err(format!("Failed to dump source database: {}", stderr));
     }
 
     let dump_duration = dump_start.elapsed();
-    add_log(&format!("[SUCCESS] Source database dumped in {:.1}s", dump_duration.as_secs_f64()));
+    add_log(&format!("[SUCCESS] Source database dumped in {}", format_duration_human(dump_duration.as_secs_f64())));
 
-    // Get dump file size
-    if let Ok(metadata) = std::fs::metadata(&dump_path) {
+    // Get dump size
+    if use_directory_format {
+        if let Ok(size) = dir_size(&dump_path) {
+            let size_mb = size as f64 / 1024.0 / 1024.0;
+            add_log(&format!("[INFO] Dump size: {:.2} MB", size_mb));
+        }
+    } else if let Ok(metadata) = std::fs::metadata(&dump_path) {
         let size_mb = metadata.len() as f64 / 1024.0 / 1024.0;
         add_log(&format!("[INFO] Dump file size: {:.2} MB", size_mb));
     }
 
-    // Stage 5: Restore to destination
+    // Stage 5: Apply performance tuning on destination before restore
+    emit_progress(app, CloneProgress::new("tuning", 55, "Tuning destination for fast restore..."));
+    add_log("[INFO] Applying performance settings on destination...");
+
+    let perf_query = r#"
+        SET synchronous_commit = off;
+        SET work_mem = '256MB';
+        SET maintenance_work_mem = '1GB';
+    "#;
+
+    let _ = create_command(psql)
+        .env("PGPASSWORD", &destination.password)
+        .env("PGSSLMODE", if destination.ssl { "require" } else { "prefer" })
+        .args(["-d", &dest_conn_str, "-c", perf_query])
+        .output();
+
+    // Stage 6: Restore to destination
     let restore_start = Instant::now();
 
-    if use_custom_format {
-        // Use pg_restore with parallel jobs for custom format
-        emit_progress(app, CloneProgress::new("restoring", 70, &format!("Restoring with {} parallel jobs...", parallel_jobs)));
-        add_log(&format!("[INFO] Restoring with pg_restore ({} parallel jobs)...", parallel_jobs));
+    if use_directory_format {
+        emit_progress(app, CloneProgress::new("restoring", 60, &format!("Restoring with {} parallel jobs...", parallel_jobs)));
+        add_log(&format!("[INFO] Restoring with pg_restore ({} parallel jobs, no owner/privileges)...", parallel_jobs));
 
-        let restore_args = vec![
+        let mut restore_args = vec![
             "-d".to_string(),
             dest_conn_str.clone(),
+            "-Fd".to_string(),
             "-j".to_string(),
             parallel_jobs.to_string(),
             "--no-owner".to_string(),
             "--no-privileges".to_string(),
-            "-v".to_string(),
-            dump_path.to_str().unwrap().to_string(),
+            "--disable-triggers".to_string(),
         ];
+
+        // For structure-only, skip data; schema is fast anyway
+        if matches!(options.clone_type, CloneType::Structure) {
+            restore_args.push("--schema-only".to_string());
+        }
+
+        restore_args.push(dump_path.to_str().unwrap().to_string());
 
         let restore_process = create_command(pg_restore)
             .env("PGPASSWORD", &destination.password)
@@ -349,7 +437,7 @@ async fn execute_clone(
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             if stderr.to_lowercase().contains("error") && !stderr.contains("pg_restore: warning") {
-                let _ = std::fs::remove_file(&dump_path);
+                let _ = cleanup_dump_path(&dump_path, true);
                 add_log(&format!("[ERROR] Restore errors: {}", stderr));
                 return Err(format!("Failed to restore to destination: {}", stderr));
             } else if !stderr.is_empty() {
@@ -360,30 +448,28 @@ async fn execute_clone(
             }
         }
     } else {
-        // Use psql for plain SQL format (data-only)
-        emit_progress(app, CloneProgress::new("restoring", 70, "Restoring data..."));
+        // Plain SQL format for data-only
+        emit_progress(app, CloneProgress::new("restoring", 60, "Restoring data..."));
         add_log("[INFO] Restoring with psql (optimized settings)...");
 
-        // Create optimized restore script with performance settings
         let optimized_path = std::env::temp_dir().join(format!("pg_clone_optimized_{}.sql", uuid::Uuid::new_v4()));
 
-        // Performance settings to prepend
         let perf_settings = r#"-- Performance optimizations for faster restore
 SET synchronous_commit = off;
 SET work_mem = '256MB';
-SET maintenance_work_mem = '512MB';
+SET maintenance_work_mem = '1GB';
 SET max_parallel_workers_per_gather = 0;
 SET session_replication_role = 'replica';
+BEGIN;
 
 "#;
 
-        // Read dump content and prepend settings
         let dump_content = std::fs::read_to_string(&dump_path)
             .map_err(|e| format!("Failed to read dump file: {}", e))?;
 
-        // Add reset at the end
         let reset_settings = r#"
 
+COMMIT;
 -- Reset settings
 SET session_replication_role = 'origin';
 SET synchronous_commit = on;
@@ -406,13 +492,12 @@ SET synchronous_commit = on;
             .wait_with_output()
             .map_err(|e| format!("Failed to wait for restore: {}", e))?;
 
-        // Clean up optimized file
         let _ = std::fs::remove_file(&optimized_path);
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             if stderr.contains("ERROR") {
-                let _ = std::fs::remove_file(&dump_path);
+                let _ = cleanup_dump_path(&dump_path, false);
                 add_log(&format!("[ERROR] Restore errors: {}", stderr));
                 return Err(format!("Failed to restore to destination: {}", stderr));
             } else if !stderr.is_empty() {
@@ -421,13 +506,13 @@ SET synchronous_commit = on;
         }
     }
 
-    // Clean up temp file
-    let _ = std::fs::remove_file(&dump_path);
+    // Clean up dump
+    let _ = cleanup_dump_path(&dump_path, use_directory_format);
 
     let restore_duration = restore_start.elapsed();
-    add_log(&format!("[SUCCESS] Database restored in {:.1}s", restore_duration.as_secs_f64()));
+    add_log(&format!("[SUCCESS] Database restored in {}", format_duration_human(restore_duration.as_secs_f64())));
 
-    // Stage 6: Verify
+    // Stage 7: Verify
     emit_progress(app, CloneProgress::new("verifying", 90, "Verifying clone..."));
     add_log("[INFO] Verifying clone...");
 
@@ -448,7 +533,43 @@ SET synchronous_commit = on;
 
     add_log(&format!("[SUCCESS] Verification complete. Tables in destination: {}", table_count));
 
+    // Final summary
+    let total_duration = total_start.elapsed();
+    add_log(&format!("[SUCCESS] Clone completed in {}", format_duration_human(total_duration.as_secs_f64())));
+    add_log(&format!(
+        "[INFO] Breakdown - Dump: {} | Restore: {} | Total: {}",
+        format_duration_human(dump_duration.as_secs_f64()),
+        format_duration_human(restore_duration.as_secs_f64()),
+        format_duration_human(total_duration.as_secs_f64()),
+    ));
+
     Ok(())
+}
+
+/// Recursively calculate directory size in bytes
+fn dir_size(path: &std::path::Path) -> Result<u64, std::io::Error> {
+    let mut total = 0;
+    if path.is_dir() {
+        for entry in std::fs::read_dir(path)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                total += dir_size(&path)?;
+            } else {
+                total += entry.metadata()?.len();
+            }
+        }
+    }
+    Ok(total)
+}
+
+/// Clean up dump path (file or directory)
+fn cleanup_dump_path(path: &std::path::Path, is_directory: bool) -> Result<(), std::io::Error> {
+    if is_directory {
+        std::fs::remove_dir_all(path)
+    } else {
+        std::fs::remove_file(path)
+    }
 }
 
 #[tauri::command]
