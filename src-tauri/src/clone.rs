@@ -6,7 +6,10 @@ use tauri::{AppHandle, Emitter};
 
 use crate::command_helper::create_command;
 use crate::connection::get_profile_by_id;
-use crate::pg_tools::{find_pg_dump, find_pg_restore, find_psql};
+use crate::pg_tools::{
+    find_pg_dump, find_pg_dump_for_server_version, find_pg_restore,
+    find_pg_restore_for_server_version, find_psql, find_psql_for_server_version,
+};
 use crate::storage::{load_app_data, save_app_data};
 use crate::types::{CloneHistoryEntry, CloneOptions, CloneProgress, CloneStatus, CloneType};
 
@@ -17,6 +20,28 @@ fn get_parallel_jobs() -> usize {
         .unwrap_or(4)
         .min(8) // Cap at 8 to avoid overwhelming the database
         .max(2) // At least 2 for meaningful parallelism
+}
+
+/// Obtiene la versión mayor del servidor PostgreSQL (e.g. 17 para v17.9)
+/// server_version_num devuelve e.g. 170009 -> major = 170009 / 10000 = 17
+fn get_server_major_version(psql: &str, conn_str: &str, password: &str, ssl: bool) -> Option<u32> {
+    let output = create_command(psql)
+        .env("PGPASSWORD", password)
+        .env("PGSSLMODE", if ssl { "require" } else { "prefer" })
+        .args(["-d", conn_str, "-t", "-c", "SHOW server_version_num;"])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let version_num: u32 = String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .parse()
+        .ok()?;
+
+    Some(version_num / 10000)
 }
 
 /// Check if two hosts are on the same machine (both local)
@@ -54,9 +79,37 @@ pub async fn start_clone(app: AppHandle, options: CloneOptions) -> Result<String
     let destination = get_profile_by_id(&options.destination_id)
         .ok_or("Destination profile not found")?;
 
-    let pg_dump = find_pg_dump().ok_or("pg_dump not found. Please install PostgreSQL client tools.")?;
-    let psql = find_psql().ok_or("psql not found. Please install PostgreSQL client tools.")?;
-    let pg_restore = find_pg_restore().ok_or("pg_restore not found. Please install PostgreSQL client tools.")?;
+    // Use a baseline psql to detect server version, then pick version-matched tools
+    let baseline_psql = find_psql()
+        .ok_or("psql not found. Please install PostgreSQL client tools.")?;
+
+    let source_conn_str_for_version = format!(
+        "host={} port={} dbname={} user={}",
+        source.host, source.port, source.database, source.user
+    );
+
+    let server_major = get_server_major_version(
+        &baseline_psql,
+        &source_conn_str_for_version,
+        &source.password,
+        source.ssl,
+    );
+
+    let (pg_dump, psql, pg_restore) = if let Some(major) = server_major {
+        let dump = find_pg_dump_for_server_version(major)
+            .ok_or("pg_dump not found. Please install PostgreSQL client tools.")?;
+        let sql = find_psql_for_server_version(major)
+            .ok_or("psql not found. Please install PostgreSQL client tools.")?;
+        let restore = find_pg_restore_for_server_version(major)
+            .ok_or("pg_restore not found. Please install PostgreSQL client tools.")?;
+        (dump, sql, restore)
+    } else {
+        let dump = find_pg_dump()
+            .ok_or("pg_dump not found. Please install PostgreSQL client tools.")?;
+        let restore = find_pg_restore()
+            .ok_or("pg_restore not found. Please install PostgreSQL client tools.")?;
+        (dump, baseline_psql, restore)
+    };
 
     // Create history entry
     let history_entry = Arc::new(Mutex::new(CloneHistoryEntry::new(
@@ -134,6 +187,8 @@ async fn execute_clone(
     add_log(&format!("[INFO] Starting clone from '{}' to '{}'", source.name, destination.name));
     add_log(&format!("[INFO] Clone type: {:?}", options.clone_type));
     add_log(&format!("[INFO] Transfer mode: {}", if is_local { "local (no compression)" } else { "remote (with compression)" }));
+    add_log(&format!("[INFO] Using pg_dump: {}", pg_dump));
+    add_log(&format!("[INFO] Using psql: {}", psql));
 
     // Stage 2: Backup (if enabled)
     if options.create_backup {

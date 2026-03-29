@@ -3,6 +3,246 @@ use std::path::PathBuf;
 
 use crate::command_helper::create_command;
 
+/// Extrae la versión mayor de un ejecutable pg (e.g. "pg_dump (PostgreSQL) 17.2" -> 17)
+pub fn get_tool_major_version(path: &str) -> Option<u32> {
+    let output = create_command(path).arg("--version").output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let version_str = String::from_utf8_lossy(&output.stdout);
+    // Formato: "pg_dump (PostgreSQL) 17.2" o "pg_dump (PostgreSQL) 17.2 (Homebrew)"
+    for part in version_str.split_whitespace() {
+        if let Some(major_str) = part.split('.').next() {
+            if let Ok(major) = major_str.parse::<u32>() {
+                if major >= 9 && major <= 99 {
+                    return Some(major);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Devuelve todos los pg_dump encontrados como (major_version, path), ordenados de mayor a menor versión
+pub fn find_pg_dump_candidates() -> Vec<(u32, String)> {
+    let mut candidates: Vec<(u32, String)> = Vec::new();
+
+    // Rutas Homebrew en macOS (Apple Silicon y Intel)
+    #[cfg(target_os = "macos")]
+    {
+        let homebrew_bases = ["/opt/homebrew/opt", "/usr/local/opt"];
+        for base in &homebrew_bases {
+            // Escanear versiones 13-20
+            for major in 13u32..=20 {
+                let path = format!("{}/postgresql@{}/bin/pg_dump", base, major);
+                if std::path::Path::new(&path).exists() {
+                    if let Some(v) = get_tool_major_version(&path) {
+                        if !candidates.iter().any(|(_, p)| p == &path) {
+                            candidates.push((v, path));
+                        }
+                    }
+                }
+            }
+            // También postgresql sin versión fija
+            let path = format!("{}/postgresql/bin/pg_dump", base);
+            if std::path::Path::new(&path).exists() {
+                if let Some(v) = get_tool_major_version(&path) {
+                    if !candidates.iter().any(|(_, p)| p == &path) {
+                        candidates.push((v, path));
+                    }
+                }
+            }
+        }
+    }
+
+    // Rutas estándar Unix
+    #[cfg(unix)]
+    {
+        let unix_paths = [
+            "/usr/bin/pg_dump",
+            "/usr/local/bin/pg_dump",
+            "/opt/homebrew/bin/pg_dump",
+            "/usr/local/pgsql/bin/pg_dump",
+        ];
+        for path in &unix_paths {
+            if std::path::Path::new(path).exists() {
+                if let Some(v) = get_tool_major_version(path) {
+                    let path_str = path.to_string();
+                    if !candidates.iter().any(|(_, p)| p == &path_str) {
+                        candidates.push((v, path_str));
+                    }
+                }
+            }
+        }
+    }
+
+    // PATH (which/where)
+    if let Some(path) = find_in_path("pg_dump") {
+        if let Some(v) = get_tool_major_version(&path) {
+            if !candidates.iter().any(|(_, p)| p == &path) {
+                candidates.push((v, path));
+            }
+        }
+    }
+
+    candidates.sort_by(|a, b| b.0.cmp(&a.0));
+    candidates
+}
+
+/// Elige el mejor pg_dump para conectarse a un servidor con la versión mayor dada.
+/// Prefiere coincidencia exacta, luego cualquiera >= server_major.
+/// Si no hay ninguno compatible, devuelve el más reciente disponible.
+pub fn find_pg_dump_for_server_version(server_major: u32) -> Option<String> {
+    let candidates = find_pg_dump_candidates();
+    if candidates.is_empty() {
+        return None;
+    }
+    // Preferir coincidencia exacta
+    if let Some((_, path)) = candidates.iter().find(|(v, _)| *v == server_major) {
+        return Some(path.clone());
+    }
+    // Luego >= server_major
+    if let Some((_, path)) = candidates.iter().find(|(v, _)| *v >= server_major) {
+        return Some(path.clone());
+    }
+    // Fallback: el más reciente que haya
+    candidates.into_iter().next().map(|(_, p)| p)
+}
+
+/// Igual que find_pg_dump_for_server_version pero para psql
+pub fn find_psql_candidates() -> Vec<(u32, String)> {
+    let mut candidates: Vec<(u32, String)> = Vec::new();
+
+    #[cfg(target_os = "macos")]
+    {
+        let homebrew_bases = ["/opt/homebrew/opt", "/usr/local/opt"];
+        for base in &homebrew_bases {
+            for major in 13u32..=20 {
+                let path = format!("{}/postgresql@{}/bin/psql", base, major);
+                if std::path::Path::new(&path).exists() {
+                    if let Some(v) = get_tool_major_version(&path) {
+                        if !candidates.iter().any(|(_, p)| p == &path) {
+                            candidates.push((v, path));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    {
+        let unix_paths = [
+            "/usr/bin/psql",
+            "/usr/local/bin/psql",
+            "/opt/homebrew/bin/psql",
+            "/usr/local/pgsql/bin/psql",
+        ];
+        for path in &unix_paths {
+            if std::path::Path::new(path).exists() {
+                if let Some(v) = get_tool_major_version(path) {
+                    let path_str = path.to_string();
+                    if !candidates.iter().any(|(_, p)| p == &path_str) {
+                        candidates.push((v, path_str));
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(path) = find_in_path("psql") {
+        if let Some(v) = get_tool_major_version(&path) {
+            if !candidates.iter().any(|(_, p)| p == &path) {
+                candidates.push((v, path));
+            }
+        }
+    }
+
+    candidates.sort_by(|a, b| b.0.cmp(&a.0));
+    candidates
+}
+
+pub fn find_psql_for_server_version(server_major: u32) -> Option<String> {
+    let candidates = find_psql_candidates();
+    if candidates.is_empty() {
+        return None;
+    }
+    if let Some((_, path)) = candidates.iter().find(|(v, _)| *v == server_major) {
+        return Some(path.clone());
+    }
+    if let Some((_, path)) = candidates.iter().find(|(v, _)| *v >= server_major) {
+        return Some(path.clone());
+    }
+    candidates.into_iter().next().map(|(_, p)| p)
+}
+
+/// Igual que find_pg_dump_for_server_version pero para pg_restore
+pub fn find_pg_restore_candidates() -> Vec<(u32, String)> {
+    let mut candidates: Vec<(u32, String)> = Vec::new();
+
+    #[cfg(target_os = "macos")]
+    {
+        let homebrew_bases = ["/opt/homebrew/opt", "/usr/local/opt"];
+        for base in &homebrew_bases {
+            for major in 13u32..=20 {
+                let path = format!("{}/postgresql@{}/bin/pg_restore", base, major);
+                if std::path::Path::new(&path).exists() {
+                    if let Some(v) = get_tool_major_version(&path) {
+                        if !candidates.iter().any(|(_, p)| p == &path) {
+                            candidates.push((v, path));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    {
+        let unix_paths = [
+            "/usr/bin/pg_restore",
+            "/usr/local/bin/pg_restore",
+            "/opt/homebrew/bin/pg_restore",
+            "/usr/local/pgsql/bin/pg_restore",
+        ];
+        for path in &unix_paths {
+            if std::path::Path::new(path).exists() {
+                if let Some(v) = get_tool_major_version(path) {
+                    let path_str = path.to_string();
+                    if !candidates.iter().any(|(_, p)| p == &path_str) {
+                        candidates.push((v, path_str));
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(path) = find_in_path("pg_restore") {
+        if let Some(v) = get_tool_major_version(&path) {
+            if !candidates.iter().any(|(_, p)| p == &path) {
+                candidates.push((v, path));
+            }
+        }
+    }
+
+    candidates.sort_by(|a, b| b.0.cmp(&a.0));
+    candidates
+}
+
+pub fn find_pg_restore_for_server_version(server_major: u32) -> Option<String> {
+    let candidates = find_pg_restore_candidates();
+    if candidates.is_empty() {
+        return None;
+    }
+    if let Some((_, path)) = candidates.iter().find(|(v, _)| *v == server_major) {
+        return Some(path.clone());
+    }
+    if let Some((_, path)) = candidates.iter().find(|(v, _)| *v >= server_major) {
+        return Some(path.clone());
+    }
+    candidates.into_iter().next().map(|(_, p)| p)
+}
+
 /// Encuentra todas las versiones de PostgreSQL instaladas en Windows
 /// Retorna las rutas ordenadas de mayor a menor versión
 fn find_pg_install_dirs() -> Vec<PathBuf> {
