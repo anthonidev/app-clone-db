@@ -276,18 +276,11 @@ async fn execute_clone(
             }
         } else {
             emit_progress(app, CloneProgress::new("cleaning", 25, "Cleaning destination database..."));
-            add_log("[INFO] Dropping destination tables...");
+            add_log("[INFO] Dropping and recreating public schema (removes tables, types, functions, etc.)...");
 
-            // Drop all tables in public schema
-            let drop_query = r#"
-                DO $$ DECLARE
-                    r RECORD;
-                BEGIN
-                    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
-                        EXECUTE 'DROP TABLE IF EXISTS public.' || quote_ident(r.tablename) || ' CASCADE';
-                    END LOOP;
-                END $$;
-            "#;
+            // Drop and recreate the entire public schema to remove all objects:
+            // tables, types (ENUMs), functions, sequences, views, triggers, etc.
+            let drop_query = "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO PUBLIC;";
 
             let clean_output = create_command(psql)
                 .env("PGPASSWORD", &destination.password)
@@ -300,7 +293,7 @@ async fn execute_clone(
                 let stderr = String::from_utf8_lossy(&clean_output.stderr);
                 add_log(&format!("[WARNING] Clean warning: {}", stderr));
             } else {
-                add_log("[SUCCESS] Destination database cleaned");
+                add_log("[SUCCESS] Destination schema dropped and recreated");
             }
         }
     }
