@@ -484,14 +484,41 @@ async fn execute_clone(
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            if stderr.to_lowercase().contains("error") && !stderr.contains("pg_restore: warning") {
+            let stderr_lower = stderr.to_lowercase();
+
+            // Count actual pg_restore errors (not warnings or ignored-error summaries)
+            let error_lines: Vec<&str> = stderr.lines()
+                .filter(|line| {
+                    let lower = line.to_lowercase();
+                    lower.contains("pg_restore: error:")
+                })
+                .collect();
+
+            // Check if all errors are non-fatal (e.g. missing extensions from cloud providers)
+            let non_fatal_patterns = [
+                "extension",
+                "comment on extension",
+            ];
+            let all_non_fatal = !error_lines.is_empty() && error_lines.iter().all(|line| {
+                let lower = line.to_lowercase();
+                non_fatal_patterns.iter().any(|pat| lower.contains(pat))
+            });
+
+            if !error_lines.is_empty() && !all_non_fatal {
                 let _ = cleanup_dump_path(&dump_path, true);
                 add_log(&format!("[ERROR] Restore errors: {}", stderr));
                 return Err(format!("Failed to restore to destination: {}", stderr));
             } else if !stderr.is_empty() {
-                let warning_count = stderr.matches("warning").count();
+                // Count warnings in any locale (warning, precaución, aviso, etc.)
+                let warning_count = error_lines.len()
+                    + stderr_lower.matches("warning").count()
+                    + stderr_lower.matches("precaución").count()
+                    + stderr_lower.matches("aviso").count();
                 if warning_count > 0 {
-                    add_log(&format!("[WARNING] Restore completed with {} warnings", warning_count));
+                    add_log(&format!("[WARNING] Restore completed with {} non-fatal issues (e.g. missing extensions)", warning_count));
+                    for line in &error_lines {
+                        add_log(&format!("[WARNING] {}", line.trim()));
+                    }
                 }
             }
         }
