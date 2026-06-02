@@ -14,6 +14,7 @@ export interface ConnectionProfile {
   password: string
   ssl: boolean
   tagId: string | null
+  readOnly: boolean
   createdAt: string
   updatedAt: string
 }

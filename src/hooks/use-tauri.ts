@@ -57,7 +57,8 @@ export async function createProfile(
   user: string,
   password: string,
   ssl: boolean,
-  tagId: string | null = null
+  tagId: string | null = null,
+  readOnly = false
 ): Promise<ConnectionProfile> {
   return invoke<ConnectionProfile>('create_profile', {
     name,
@@ -67,7 +68,8 @@ export async function createProfile(
     user,
     password,
     ssl,
-    tagId
+    tagId,
+    readOnly
   })
 }
 
@@ -80,7 +82,8 @@ export async function updateProfile(
   user: string,
   password: string,
   ssl: boolean,
-  tagId: string | null = null
+  tagId: string | null = null,
+  readOnly = false
 ): Promise<ConnectionProfile> {
   return invoke<ConnectionProfile>('update_profile', {
     id,
@@ -91,7 +94,8 @@ export async function updateProfile(
     user,
     password,
     ssl,
-    tagId
+    tagId,
+    readOnly
   })
 }
 
@@ -136,24 +140,38 @@ export function useCloneProgress() {
   const [logs, setLogs] = useState<string[]>([])
 
   useEffect(() => {
-    let unlistenProgress: UnlistenFn | undefined
-    let unlistenLog: UnlistenFn | undefined
+    // Guard contra el double-mount de StrictMode en React 19:
+    // si el effect se desmonta antes de que terminen los `await listen(...)`,
+    // marcamos `cancelled` y al resolver desuscribimos inmediatamente.
+    // Sin esto, terminamos con 2 listeners activos y cada evento se procesa dos veces.
+    let cancelled = false
+    const unlisteners: UnlistenFn[] = []
 
     const setup = async () => {
-      unlistenProgress = await listen<CloneProgress>('clone-progress', (event) => {
+      const off1 = await listen<CloneProgress>('clone-progress', (event) => {
         setProgress(event.payload)
       })
+      if (cancelled) {
+        off1()
+        return
+      }
+      unlisteners.push(off1)
 
-      unlistenLog = await listen<string>('clone-log', (event) => {
+      const off2 = await listen<string>('clone-log', (event) => {
         setLogs((prev) => [...prev, event.payload])
       })
+      if (cancelled) {
+        off2()
+        return
+      }
+      unlisteners.push(off2)
     }
 
     setup()
 
     return () => {
-      unlistenProgress?.()
-      unlistenLog?.()
+      cancelled = true
+      for (const off of unlisteners) off()
     }
   }, [])
 
@@ -350,4 +368,27 @@ export function useSchemaProgress() {
   }, [])
 
   return { progress, logs, reset }
+}
+
+// Export / Import config
+
+export interface ImportPreview {
+  newProfiles: string[]
+  replacedProfiles: string[]
+  newTags: string[]
+  replacedTags: string[]
+  totalProfiles: number
+  totalTags: number
+}
+
+export async function exportConfig(): Promise<string> {
+  return invoke<string>('export_config')
+}
+
+export async function previewImportConfig(json: string): Promise<ImportPreview> {
+  return invoke<ImportPreview>('preview_import_config', { json })
+}
+
+export async function importConfig(json: string): Promise<ImportPreview> {
+  return invoke<ImportPreview>('import_config', { json })
 }

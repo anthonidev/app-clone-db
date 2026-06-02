@@ -617,14 +617,30 @@ export function Clone() {
 
               {/* Error */}
               {progress.isError && (
-                <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
-                  <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
-                  <div>
-                    <p className="text-sm text-red-600 font-semibold">Clone failed</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {progress.message}
-                    </p>
+                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl space-y-2">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-red-600 font-semibold">Clone failed</p>
+                      <p className="text-xs text-muted-foreground mt-1 font-mono break-words whitespace-pre-wrap">
+                        {progress.message}
+                      </p>
+                    </div>
                   </div>
+                  {logs.filter((l) => l.includes("[ERROR]")).length > 0 && (
+                    <div className="border-t border-red-500/20 pt-2 mt-2">
+                      <p className="text-[10px] uppercase tracking-wider text-red-600 mb-1 font-semibold">
+                        Error log entries
+                      </p>
+                      <div className="space-y-1 font-mono text-[11px] text-red-600 break-words whitespace-pre-wrap">
+                        {logs
+                          .filter((l) => l.includes("[ERROR]"))
+                          .map((l, i) => (
+                            <div key={i}>{l}</div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -632,27 +648,71 @@ export function Clone() {
 
           {/* Logs */}
           <div className="space-y-2">
-            <Label className="text-xs">Logs</Label>
-            <div className="h-56 w-full rounded-lg border bg-muted/30 overflow-hidden">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Logs</Label>
+              <div className="flex items-center gap-2">
+                {logs.length > 0 && (() => {
+                  const errCount = logs.filter((l) => l.includes("[ERROR]")).length;
+                  const warnCount = logs.filter((l) => l.includes("[WARNING]")).length;
+                  return (
+                    <div className="flex items-center gap-1.5 text-[10px]">
+                      {errCount > 0 && (
+                        <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-600 font-semibold">
+                          {errCount} error{errCount > 1 ? "s" : ""}
+                        </span>
+                      )}
+                      {warnCount > 0 && (
+                        <span className="px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-600 font-semibold">
+                          {warnCount} warning{warnCount > 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+                {logs.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() => {
+                      navigator.clipboard
+                        .writeText(logs.join("\n"))
+                        .then(() => notifySuccess("Logs copied", "Pega los logs donde necesites"))
+                        .catch(() => notifyError("Copy failed", "No se pudo copiar al portapapeles"));
+                    }}
+                  >
+                    <Copy className="h-3 w-3 mr-1" />
+                    Copy logs
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="h-96 w-full rounded-lg border bg-muted/30 overflow-hidden">
               <div className="h-full overflow-auto p-3 font-mono text-xs leading-relaxed">
                 {logs.length === 0 ? (
                   <p className="text-muted-foreground">Waiting for logs...</p>
                 ) : (
                   <>
-                    {logs.map((log, i) => (
-                      <div
-                        key={i}
-                        className={cn(
-                          "py-0.5 clone-log-entry",
-                          log.includes("[ERROR]") && "text-red-500",
-                          log.includes("[WARNING]") && "text-yellow-500",
-                          log.includes("[SUCCESS]") && "text-green-500",
-                          log.includes("[INFO]") && "text-muted-foreground"
-                        )}
-                      >
-                        {log}
-                      </div>
-                    ))}
+                    {logs.map((log, i) => {
+                      const isError = log.includes("[ERROR]");
+                      const isWarning = log.includes("[WARNING]");
+                      const isSuccess = log.includes("[SUCCESS]");
+                      return (
+                        <div
+                          key={i}
+                          className={cn(
+                            "py-0.5 px-1.5 rounded clone-log-entry whitespace-pre-wrap break-words",
+                            isError && "text-red-500 bg-red-500/10 border-l-2 border-red-500",
+                            isWarning && "text-yellow-600 bg-yellow-500/5",
+                            isSuccess && "text-green-500",
+                            !isError && !isWarning && !isSuccess && log.includes("[INFO]") && "text-muted-foreground"
+                          )}
+                        >
+                          {log}
+                        </div>
+                      );
+                    })}
                     <div ref={logsEndRef} />
                   </>
                 )}
@@ -725,6 +785,7 @@ export function Clone() {
         tags={tags}
         selectedId={destinationId}
         excludeId={sourceId}
+        excludeReadOnly
         onSelect={setDestinationId}
         title="Select Destination Database"
       />

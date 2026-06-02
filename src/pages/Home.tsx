@@ -1,17 +1,85 @@
 import { Link } from 'react-router-dom'
-import { Plus, Database, AlertCircle, Loader2, Tag as TagIcon, X, Filter } from 'lucide-react'
+import { Plus, Database, AlertCircle, Loader2, Tag as TagIcon, X, Filter, Download, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ConnectionCard } from '@/components/ConnectionCard'
-import { useProfiles, useTags } from '@/hooks/use-tauri'
+import { ImportConfigModal } from '@/components/ImportConfigModal'
+import { useProfiles, useTags, exportConfig, previewImportConfig, importConfig, type ImportPreview } from '@/hooks/use-tauri'
+import { useNotification } from '@/hooks/use-notification'
 import { usePgTools } from '@/context/PgToolsContext'
 import { useState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
+import { save, open } from '@tauri-apps/plugin-dialog'
+import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs'
 
 export function Home() {
   const { profiles, loading, error, refetch } = useProfiles()
-  const { tags } = useTags()
+  const { tags, refetch: refetchTags } = useTags()
   const { available: pgToolsAvailable } = usePgTools()
+  const { notifySuccess, notifyError } = useNotification()
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null)
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
+  const [importJson, setImportJson] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
+
+  const handleExport = async () => {
+    try {
+      const json = await exportConfig()
+      const defaultName = `db-clone-config-${new Date().toISOString().slice(0, 10)}.json`
+      const path = await save({
+        defaultPath: defaultName,
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      })
+      if (!path) return
+      await writeTextFile(path, json)
+      notifySuccess('Configuration exported', `Saved to ${path}`)
+    } catch (e) {
+      notifyError('Export failed', String(e))
+    }
+  }
+
+  const handleImportPick = async () => {
+    try {
+      const selected = await open({
+        multiple: false,
+        directory: false,
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      })
+      if (!selected || Array.isArray(selected)) return
+      const content = await readTextFile(selected)
+      const preview = await previewImportConfig(content)
+      setImportJson(content)
+      setImportPreview(preview)
+    } catch (e) {
+      notifyError('Import failed', String(e))
+    }
+  }
+
+  const handleImportConfirm = async () => {
+    if (!importJson) return
+    try {
+      setImporting(true)
+      const result = await importConfig(importJson)
+      const total = result.newProfiles.length + result.replacedProfiles.length
+      notifySuccess(
+        'Configuration imported',
+        `${total} profile(s) imported (${result.replacedProfiles.length} replaced)`
+      )
+      await Promise.all([refetch(), refetchTags()])
+      setImportPreview(null)
+      setImportJson(null)
+    } catch (e) {
+      notifyError('Import failed', String(e))
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const handleImportCancel = (open: boolean) => {
+    if (!open) {
+      setImportPreview(null)
+      setImportJson(null)
+    }
+  }
 
   const filteredProfiles = useMemo(() => {
     if (!selectedTagId) return profiles
@@ -40,12 +108,28 @@ export function Home() {
             Manage your PostgreSQL database connections
           </p>
         </div>
-        <Link to="/connection/new">
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            New Connection
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleImportPick}>
+            <Upload className="h-4 w-4 mr-2" />
+            Import
           </Button>
-        </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            disabled={profiles.length === 0}
+            title={profiles.length === 0 ? 'Nothing to export yet' : 'Export profiles and tags to JSON'}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+          <Link to="/connection/new">
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              New Connection
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Tag Filter */}
@@ -148,6 +232,14 @@ export function Home() {
           ))}
         </div>
       )}
+
+      <ImportConfigModal
+        open={importPreview !== null}
+        onOpenChange={handleImportCancel}
+        preview={importPreview}
+        onConfirm={handleImportConfirm}
+        loading={importing}
+      />
     </div>
   )
 }

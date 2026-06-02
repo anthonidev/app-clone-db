@@ -1,4 +1,5 @@
 use chrono::Utc;
+use serde::{Deserialize, Serialize};
 
 use crate::storage::{load_app_data, save_app_data};
 use crate::types::{CloneType, ConnectionProfile, SavedOperation, Tag};
@@ -16,6 +17,7 @@ pub fn get_profile(id: String) -> Result<Option<ConnectionProfile>, String> {
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn create_profile(
     name: String,
     host: String,
@@ -25,10 +27,21 @@ pub fn create_profile(
     password: String,
     ssl: bool,
     tag_id: Option<String>,
+    read_only: Option<bool>,
 ) -> Result<ConnectionProfile, String> {
     let mut data = load_app_data();
 
-    let profile = ConnectionProfile::new(name, host, port, database, user, password, ssl, tag_id);
+    let profile = ConnectionProfile::new(
+        name,
+        host,
+        port,
+        database,
+        user,
+        password,
+        ssl,
+        tag_id,
+        read_only.unwrap_or(false),
+    );
 
     data.profiles.push(profile.clone());
     save_app_data(&data)?;
@@ -37,6 +50,7 @@ pub fn create_profile(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn update_profile(
     id: String,
     name: String,
@@ -47,6 +61,7 @@ pub fn update_profile(
     password: String,
     ssl: bool,
     tag_id: Option<String>,
+    read_only: Option<bool>,
 ) -> Result<ConnectionProfile, String> {
     let mut data = load_app_data();
 
@@ -64,6 +79,7 @@ pub fn update_profile(
     profile.password = password;
     profile.ssl = ssl;
     profile.tag_id = tag_id;
+    profile.read_only = read_only.unwrap_or(false);
     profile.updated_at = Utc::now();
 
     let updated = profile.clone();
@@ -204,4 +220,177 @@ pub fn delete_saved_operation(id: String) -> Result<(), String> {
 
     save_app_data(&data)?;
     Ok(())
+}
+
+// ─── Export / Import config ─────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ConfigBundle {
+    pub version: u32,
+    #[serde(rename = "exportedAt")]
+    pub exported_at: chrono::DateTime<chrono::Utc>,
+    pub profiles: Vec<ConnectionProfile>,
+    pub tags: Vec<Tag>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ImportPreview {
+    #[serde(rename = "newProfiles")]
+    pub new_profiles: Vec<String>,
+    #[serde(rename = "replacedProfiles")]
+    pub replaced_profiles: Vec<String>,
+    #[serde(rename = "newTags")]
+    pub new_tags: Vec<String>,
+    #[serde(rename = "replacedTags")]
+    pub replaced_tags: Vec<String>,
+    #[serde(rename = "totalProfiles")]
+    pub total_profiles: usize,
+    #[serde(rename = "totalTags")]
+    pub total_tags: usize,
+}
+
+const CONFIG_VERSION: u32 = 1;
+
+#[tauri::command]
+pub fn export_config() -> Result<String, String> {
+    let data = load_app_data();
+    let bundle = ConfigBundle {
+        version: CONFIG_VERSION,
+        exported_at: Utc::now(),
+        profiles: data.profiles,
+        tags: data.tags,
+    };
+    serde_json::to_string_pretty(&bundle).map_err(|e| format!("Failed to serialize: {}", e))
+}
+
+/// Genera un preview de qué cambiaría sin modificar nada. El frontend lo usa
+/// para mostrar el modal de confirmación.
+#[tauri::command]
+pub fn preview_import_config(json: String) -> Result<ImportPreview, String> {
+    let bundle: ConfigBundle =
+        serde_json::from_str(&json).map_err(|e| format!("Invalid JSON: {}", e))?;
+    if bundle.version != CONFIG_VERSION {
+        return Err(format!(
+            "Unsupported config version {} (expected {})",
+            bundle.version, CONFIG_VERSION
+        ));
+    }
+
+    let data = load_app_data();
+    let existing_profile_names: std::collections::HashSet<String> =
+        data.profiles.iter().map(|p| p.name.clone()).collect();
+    let existing_tag_names: std::collections::HashSet<String> =
+        data.tags.iter().map(|t| t.name.clone()).collect();
+
+    let mut new_profiles = Vec::new();
+    let mut replaced_profiles = Vec::new();
+    for p in &bundle.profiles {
+        if existing_profile_names.contains(&p.name) {
+            replaced_profiles.push(p.name.clone());
+        } else {
+            new_profiles.push(p.name.clone());
+        }
+    }
+
+    let mut new_tags = Vec::new();
+    let mut replaced_tags = Vec::new();
+    for t in &bundle.tags {
+        if existing_tag_names.contains(&t.name) {
+            replaced_tags.push(t.name.clone());
+        } else {
+            new_tags.push(t.name.clone());
+        }
+    }
+
+    Ok(ImportPreview {
+        new_profiles,
+        replaced_profiles,
+        new_tags,
+        replaced_tags,
+        total_profiles: bundle.profiles.len(),
+        total_tags: bundle.tags.len(),
+    })
+}
+
+/// Aplica el import: conserva los del archivo y borra los duplicados por nombre.
+///
+/// Estrategia de duplicados (por nombre):
+///   - Profile/tag con nombre existente localmente → se reemplaza (el del archivo gana)
+///   - Profile/tag con nombre nuevo → se añade
+///   - Profile/tag local sin coincidencia en archivo → se preserva intacto
+///
+/// Si un profile importado apunta a un tag_id que no existe (ni en el bundle ni
+/// en los tags locales conservados), se nulea tag_id para evitar referencias rotas.
+#[tauri::command]
+pub fn import_config(json: String) -> Result<ImportPreview, String> {
+    let bundle: ConfigBundle =
+        serde_json::from_str(&json).map_err(|e| format!("Invalid JSON: {}", e))?;
+    if bundle.version != CONFIG_VERSION {
+        return Err(format!(
+            "Unsupported config version {} (expected {})",
+            bundle.version, CONFIG_VERSION
+        ));
+    }
+
+    let mut data = load_app_data();
+
+    let local_profile_names: std::collections::HashSet<String> =
+        data.profiles.iter().map(|p| p.name.clone()).collect();
+    let local_tag_names: std::collections::HashSet<String> =
+        data.tags.iter().map(|t| t.name.clone()).collect();
+    let import_profile_names: std::collections::HashSet<String> =
+        bundle.profiles.iter().map(|p| p.name.clone()).collect();
+    let import_tag_names: std::collections::HashSet<String> =
+        bundle.tags.iter().map(|t| t.name.clone()).collect();
+
+    let mut new_profiles = Vec::new();
+    let mut replaced_profiles = Vec::new();
+    for p in &bundle.profiles {
+        if local_profile_names.contains(&p.name) {
+            replaced_profiles.push(p.name.clone());
+        } else {
+            new_profiles.push(p.name.clone());
+        }
+    }
+    let mut new_tags = Vec::new();
+    let mut replaced_tags = Vec::new();
+    for t in &bundle.tags {
+        if local_tag_names.contains(&t.name) {
+            replaced_tags.push(t.name.clone());
+        } else {
+            new_tags.push(t.name.clone());
+        }
+    }
+
+    // Tags: quitar los locales con nombre colisionado, añadir los del bundle.
+    data.tags.retain(|t| !import_tag_names.contains(&t.name));
+    data.tags.extend(bundle.tags.iter().cloned());
+
+    // Profiles: idem.
+    data.profiles
+        .retain(|p| !import_profile_names.contains(&p.name));
+
+    // Conjunto de tag_ids válidos tras el merge (bundle + locales conservados).
+    let valid_tag_ids: std::collections::HashSet<String> =
+        data.tags.iter().map(|t| t.id.clone()).collect();
+    for p in &bundle.profiles {
+        let mut profile = p.clone();
+        if let Some(tag_id) = &profile.tag_id {
+            if !valid_tag_ids.contains(tag_id) {
+                profile.tag_id = None;
+            }
+        }
+        data.profiles.push(profile);
+    }
+
+    save_app_data(&data)?;
+
+    Ok(ImportPreview {
+        new_profiles,
+        replaced_profiles,
+        new_tags,
+        replaced_tags,
+        total_profiles: bundle.profiles.len(),
+        total_tags: bundle.tags.len(),
+    })
 }

@@ -1,6 +1,7 @@
 mod clone;
 mod command_helper;
 mod connection;
+mod pg_client;
 mod pg_tools;
 mod profiles;
 mod schema;
@@ -11,8 +12,8 @@ use clone::{clear_history, get_history, get_history_entry, start_clone};
 use connection::{check_pg_tools, get_database_structure, test_connection, test_connection_by_id};
 use profiles::{
     create_profile, create_saved_operation, create_tag, delete_profile, delete_saved_operation,
-    delete_tag, get_profile, get_profiles, get_saved_operations, get_tags, update_profile,
-    update_tag,
+    delete_tag, export_config, get_profile, get_profiles, get_saved_operations, get_tags,
+    import_config, preview_import_config, update_profile, update_tag,
 };
 use schema::download_schema;
 
@@ -41,6 +42,10 @@ pub fn run() {
             get_saved_operations,
             create_saved_operation,
             delete_saved_operation,
+            // Export/Import commands
+            export_config,
+            preview_import_config,
+            import_config,
             // Connection commands
             check_pg_tools,
             test_connection,

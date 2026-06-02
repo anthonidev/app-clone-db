@@ -1,4 +1,4 @@
-import { Database, Server, Check } from "lucide-react";
+import { Database, Server, Check, ShieldAlert } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,8 @@ interface DatabaseSelectorModalProps {
   tags: Tag[];
   selectedId: string | null;
   excludeId?: string | null;
+  /** Si es true, oculta los perfiles marcados como readOnly (protected). */
+  excludeReadOnly?: boolean;
   onSelect: (id: string) => void;
   title: string;
 }
@@ -27,6 +29,7 @@ export function DatabaseSelectorModal({
   tags,
   selectedId,
   excludeId,
+  excludeReadOnly,
   onSelect,
   title,
 }: DatabaseSelectorModalProps) {
@@ -35,9 +38,16 @@ export function DatabaseSelectorModal({
     return tags.find((t) => t.id === tagId);
   };
 
-  const filteredProfiles = excludeId
-    ? profiles.filter((p) => p.id !== excludeId)
-    : profiles;
+  const filteredProfiles = profiles.filter((p) => {
+    if (excludeId && p.id === excludeId) return false;
+    if (excludeReadOnly && p.readOnly) return false;
+    return true;
+  });
+
+  const hiddenProtectedCount = excludeReadOnly
+    ? profiles.filter((p) => p.readOnly && (!excludeId || p.id !== excludeId))
+        .length
+    : 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -48,6 +58,17 @@ export function DatabaseSelectorModal({
             {title}
           </DialogTitle>
         </DialogHeader>
+
+        {hiddenProtectedCount > 0 && (
+          <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs">
+            <ShieldAlert className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+            <p className="text-red-700">
+              {hiddenProtectedCount} protected database
+              {hiddenProtectedCount > 1 ? "s are" : " is"} hidden — they cannot
+              be used as a clone destination.
+            </p>
+          </div>
+        )}
 
         <ScrollArea className="max-h-[60vh]">
           <div className="grid gap-3 p-1">

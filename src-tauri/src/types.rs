@@ -31,6 +31,11 @@ pub struct ConnectionProfile {
     pub ssl: bool,
     #[serde(rename = "tagId")]
     pub tag_id: Option<String>,
+    /// Si es true, este perfil NO puede ser usado como destino de un clone.
+    /// Sirve para proteger BDs críticas (PRD) contra clones accidentales.
+    /// Default false para retrocompatibilidad con perfiles existentes.
+    #[serde(rename = "readOnly", default)]
+    pub read_only: bool,
     #[serde(rename = "createdAt")]
     pub created_at: DateTime<Utc>,
     #[serde(rename = "updatedAt")]
@@ -47,6 +52,7 @@ impl ConnectionProfile {
         password: String,
         ssl: bool,
         tag_id: Option<String>,
+        read_only: bool,
     ) -> Self {
         let now = Utc::now();
         Self {
@@ -59,6 +65,7 @@ impl ConnectionProfile {
             password,
             ssl,
             tag_id,
+            read_only,
             created_at: now,
             updated_at: now,
         }

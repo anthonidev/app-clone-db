@@ -11,6 +11,7 @@ import {
   Lock,
   Link2,
   ShieldCheck,
+  ShieldAlert,
   Tag as TagIcon,
   Plug,
   Save,
@@ -72,6 +73,7 @@ export function ConnectionForm() {
   const [password, setPassword] = useState("");
   const [ssl, setSsl] = useState(false);
   const [tagId, setTagId] = useState<string | null>(null);
+  const [readOnly, setReadOnly] = useState(false);
 
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<DatabaseInfo | null>(null);
@@ -95,6 +97,7 @@ export function ConnectionForm() {
             setPassword(profile.password);
             setSsl(profile.ssl);
             setTagId(profile.tagId);
+            setReadOnly(profile.readOnly ?? false);
           }
           setLoading(false);
         }
@@ -173,10 +176,21 @@ export function ConnectionForm() {
           user,
           password,
           ssl,
-          tagId
+          tagId,
+          readOnly
         );
       } else {
-        await createProfile(name, host, port, database, user, password, ssl, tagId);
+        await createProfile(
+          name,
+          host,
+          port,
+          database,
+          user,
+          password,
+          ssl,
+          tagId,
+          readOnly
+        );
       }
       navigate("/");
     } catch (error) {
@@ -377,6 +391,46 @@ export function ConnectionForm() {
               </div>
             </TabsContent>
           </Tabs>
+        </div>
+
+        {/* Protection Section */}
+        <div className="rounded-xl border bg-card p-5 space-y-4">
+          <SectionHeader
+            icon={ShieldAlert}
+            title="Protection"
+            description="Prevent accidental destructive operations on this database"
+          />
+
+          <label
+            htmlFor="read-only"
+            className={`flex items-start justify-between gap-4 rounded-lg border p-4 cursor-pointer transition-colors ${
+              readOnly
+                ? "border-red-500/40 bg-red-500/5"
+                : "hover:bg-muted/30"
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <ShieldAlert
+                className={`h-5 w-5 mt-0.5 shrink-0 ${
+                  readOnly ? "text-red-600" : "text-muted-foreground"
+                }`}
+              />
+              <div>
+                <p className="text-sm font-medium">
+                  Protected (read-only destination)
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  When enabled, this connection cannot be selected as a clone
+                  destination. Useful for production databases.
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="read-only"
+              checked={readOnly}
+              onCheckedChange={setReadOnly}
+            />
+          </label>
         </div>
 
         {/* Test Result */}

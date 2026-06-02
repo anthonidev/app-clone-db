@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Database, Edit, Trash2, Loader2, CheckCircle, XCircle, Server, Copy, Lock } from 'lucide-react'
+import { Database, Edit, Trash2, Loader2, CheckCircle, XCircle, Server, Copy, Lock, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -103,7 +103,7 @@ export function ConnectionCard({ profile, tag, onDelete }: ConnectionCardProps) 
           </div>
 
           {/* Connection info */}
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
             <div className="flex items-center gap-1.5">
               <Server className="h-3 w-3" />
               <span>{profile.host}:{profile.port}</span>
@@ -112,6 +112,15 @@ export function ConnectionCard({ profile, tag, onDelete }: ConnectionCardProps) 
               <div className="flex items-center gap-1 text-green-600">
                 <Lock className="h-3 w-3" />
                 <span>SSL</span>
+              </div>
+            )}
+            {profile.readOnly && (
+              <div
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-500/10 text-red-600 font-medium"
+                title="Protected — cannot be used as clone destination"
+              >
+                <ShieldAlert className="h-3 w-3" />
+                <span>Protected</span>
               </div>
             )}
           </div>
